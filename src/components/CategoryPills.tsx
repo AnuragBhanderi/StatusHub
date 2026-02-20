@@ -1,0 +1,56 @@
+"use client";
+
+import type { Theme } from "@/config/themes";
+
+interface CategoryPillsProps {
+  categories: string[];
+  active: string;
+  onChange: (category: string) => void;
+  t: Theme;
+}
+
+export default function CategoryPills({
+  categories,
+  active,
+  onChange,
+  t,
+}: CategoryPillsProps) {
+  const all = ["All", ...categories];
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: 8,
+        marginBottom: 28,
+        overflowX: "auto",
+        paddingBottom: 4,
+      }}
+    >
+      {all.map((cat) => {
+        const isActive = active === cat;
+        return (
+          <button
+            key={cat}
+            onClick={() => onChange(cat)}
+            style={{
+              padding: "7px 15px",
+              borderRadius: 20,
+              border: `1px solid ${isActive ? t.pillActiveBorder : t.pillBorder}`,
+              background: isActive ? t.pillActiveBg : t.pillBg,
+              color: isActive ? t.pillActiveText : t.pillText,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+              fontFamily: "var(--font-sans)",
+              transition: "all 0.15s",
+            }}
+          >
+            {cat}
+          </button>
+        );
+      })}
+    </div>
+  );
+}

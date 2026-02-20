@@ -1,0 +1,453 @@
+export interface ServiceConfig {
+  name: string;
+  slug: string;
+  category: string;
+  statusPageUrl: string;
+  apiEndpoint: string;
+  sourceType: "STATUSPAGE_API" | "RSS_FEED" | "JSON_FEED";
+  logoUrl?: string;
+}
+
+export const services: ServiceConfig[] = [
+  // --- Version Control & CI/CD ---
+  {
+    name: "GitHub",
+    slug: "github",
+    category: "Version Control & CI/CD",
+    statusPageUrl: "https://www.githubstatus.com",
+    apiEndpoint: "https://www.githubstatus.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+    logoUrl: "https://github.githubassets.com/favicons/favicon-dark.svg",
+  },
+  {
+    name: "GitLab",
+    slug: "gitlab",
+    category: "Version Control & CI/CD",
+    statusPageUrl: "https://status.gitlab.com",
+    apiEndpoint: "https://status.gitlab.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+    logoUrl: "https://about.gitlab.com/nuxt-images/ico/favicon.ico",
+  },
+  {
+    name: "Bitbucket",
+    slug: "bitbucket",
+    category: "Version Control & CI/CD",
+    statusPageUrl: "https://bitbucket.status.atlassian.com",
+    apiEndpoint: "https://bitbucket.status.atlassian.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+    logoUrl: "https://wac-cdn.atlassian.com/assets/img/favicons/bitbucket/favicon.png",
+  },
+  {
+    name: "CircleCI",
+    slug: "circleci",
+    category: "Version Control & CI/CD",
+    statusPageUrl: "https://status.circleci.com",
+    apiEndpoint: "https://status.circleci.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+    logoUrl: "https://circleci.com/favicon.ico",
+  },
+
+  // --- Cloud & Hosting ---
+  {
+    name: "Vercel",
+    slug: "vercel",
+    category: "Cloud & Hosting",
+    statusPageUrl: "https://www.vercel-status.com",
+    apiEndpoint: "https://www.vercel-status.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+    logoUrl: "https://assets.vercel.com/image/upload/front/favicon/vercel/favicon.ico",
+  },
+  {
+    name: "Netlify",
+    slug: "netlify",
+    category: "Cloud & Hosting",
+    statusPageUrl: "https://www.netlifystatus.com",
+    apiEndpoint: "https://www.netlifystatus.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+    logoUrl: "https://www.netlify.com/favicon/icon.svg",
+  },
+  {
+    name: "Heroku",
+    slug: "heroku",
+    category: "Cloud & Hosting",
+    statusPageUrl: "https://status.heroku.com",
+    apiEndpoint: "https://status.heroku.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+    logoUrl: "https://www.herokucdn.com/favicons/favicon.ico",
+  },
+  {
+    name: "Render",
+    slug: "render",
+    category: "Cloud & Hosting",
+    statusPageUrl: "https://status.render.com",
+    apiEndpoint: "https://status.render.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+  },
+  {
+    name: "Railway",
+    slug: "railway",
+    category: "Cloud & Hosting",
+    statusPageUrl: "https://status.railway.app",
+    apiEndpoint: "https://status.railway.app/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+  },
+  {
+    name: "DigitalOcean",
+    slug: "digitalocean",
+    category: "Cloud & Hosting",
+    statusPageUrl: "https://status.digitalocean.com",
+    apiEndpoint: "https://status.digitalocean.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+  },
+
+  // --- Cloud Providers (Custom) ---
+  {
+    name: "AWS",
+    slug: "aws",
+    category: "Cloud Providers",
+    statusPageUrl: "https://status.aws.amazon.com",
+    apiEndpoint: "https://status.aws.amazon.com/rss/ec2-us-east-1.rss",
+    sourceType: "RSS_FEED",
+    logoUrl: "https://a0.awsstatic.com/libra-css/images/site/fav/favicon.ico",
+  },
+  {
+    name: "Google Cloud",
+    slug: "gcp",
+    category: "Cloud Providers",
+    statusPageUrl: "https://status.cloud.google.com",
+    apiEndpoint: "https://status.cloud.google.com/incidents.json",
+    sourceType: "JSON_FEED",
+    logoUrl: "https://www.gstatic.com/devrel-devsite/prod/v0e0f589edd85502a40d78d7d0825db8ea5ef3b99ab4070381ee86977c9168730/cloud/images/favicons/onecloud/favicon.ico",
+  },
+  {
+    name: "Microsoft Azure",
+    slug: "azure",
+    category: "Cloud Providers",
+    statusPageUrl: "https://azure.status.microsoft",
+    apiEndpoint: "https://azure.status.microsoft/en-us/status/feed/",
+    sourceType: "RSS_FEED",
+    logoUrl: "https://azure.microsoft.com/favicon.ico",
+  },
+
+  // --- Databases ---
+  {
+    name: "MongoDB Atlas",
+    slug: "mongodb",
+    category: "Databases",
+    statusPageUrl: "https://status.cloud.mongodb.com",
+    apiEndpoint: "https://status.cloud.mongodb.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+    logoUrl: "https://www.mongodb.com/assets/images/global/favicon.ico",
+  },
+  {
+    name: "Supabase",
+    slug: "supabase",
+    category: "Databases",
+    statusPageUrl: "https://status.supabase.com",
+    apiEndpoint: "https://status.supabase.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+    logoUrl: "https://supabase.com/favicon/favicon-196x196.png",
+  },
+  {
+    name: "PlanetScale",
+    slug: "planetscale",
+    category: "Databases",
+    statusPageUrl: "https://www.planetscalestatus.com",
+    apiEndpoint: "https://www.planetscalestatus.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+  },
+
+  // --- Payments ---
+  {
+    name: "Stripe",
+    slug: "stripe",
+    category: "Payments",
+    statusPageUrl: "https://status.stripe.com",
+    apiEndpoint: "https://status.stripe.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+    logoUrl: "https://images.stripeassets.com/fzn2n1nzq965/htTOlLECR6GqQmQhVsfEY/0e13e8c56e3998e1837498e84a08648f/favicon.png",
+  },
+  {
+    name: "Shopify",
+    slug: "shopify",
+    category: "Payments",
+    statusPageUrl: "https://www.shopifystatus.com",
+    apiEndpoint: "https://www.shopifystatus.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+    logoUrl: "https://cdn.shopify.com/static/shopify-favicon.png",
+  },
+
+  // --- Communication ---
+  {
+    name: "Twilio",
+    slug: "twilio",
+    category: "Communication",
+    statusPageUrl: "https://status.twilio.com",
+    apiEndpoint: "https://status.twilio.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+  },
+  {
+    name: "SendGrid",
+    slug: "sendgrid",
+    category: "Communication",
+    statusPageUrl: "https://status.sendgrid.com",
+    apiEndpoint: "https://status.sendgrid.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+  },
+  {
+    name: "Mailgun",
+    slug: "mailgun",
+    category: "Communication",
+    statusPageUrl: "https://status.mailgun.com",
+    apiEndpoint: "https://status.mailgun.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+  },
+
+  // --- Productivity ---
+  {
+    name: "Slack",
+    slug: "slack",
+    category: "Productivity",
+    statusPageUrl: "https://status.slack.com",
+    apiEndpoint: "https://status.slack.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+    logoUrl: "https://a.slack-edge.com/80588/marketing/img/meta/favicon-32.png",
+  },
+  {
+    name: "Zoom",
+    slug: "zoom",
+    category: "Productivity",
+    statusPageUrl: "https://status.zoom.us",
+    apiEndpoint: "https://status.zoom.us/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+  },
+  {
+    name: "Figma",
+    slug: "figma",
+    category: "Productivity",
+    statusPageUrl: "https://status.figma.com",
+    apiEndpoint: "https://status.figma.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+    logoUrl: "https://static.figma.com/app/icon/1/favicon.png",
+  },
+  {
+    name: "Notion",
+    slug: "notion",
+    category: "Productivity",
+    statusPageUrl: "https://status.notion.so",
+    apiEndpoint: "https://status.notion.so/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+    logoUrl: "https://www.notion.so/images/favicon.ico",
+  },
+  {
+    name: "Jira",
+    slug: "jira",
+    category: "Productivity",
+    statusPageUrl: "https://jira-software.status.atlassian.com",
+    apiEndpoint: "https://jira-software.status.atlassian.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+  },
+  {
+    name: "Confluence",
+    slug: "confluence",
+    category: "Productivity",
+    statusPageUrl: "https://confluence.status.atlassian.com",
+    apiEndpoint: "https://confluence.status.atlassian.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+  },
+
+  // --- CDN & Performance ---
+  {
+    name: "Cloudflare",
+    slug: "cloudflare",
+    category: "CDN & Performance",
+    statusPageUrl: "https://www.cloudflarestatus.com",
+    apiEndpoint: "https://www.cloudflarestatus.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+    logoUrl: "https://www.cloudflare.com/favicon.ico",
+  },
+  {
+    name: "Cloudinary",
+    slug: "cloudinary",
+    category: "CDN & Performance",
+    statusPageUrl: "https://status.cloudinary.com",
+    apiEndpoint: "https://status.cloudinary.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+  },
+  {
+    name: "Imgix",
+    slug: "imgix",
+    category: "CDN & Performance",
+    statusPageUrl: "https://status.imgix.com",
+    apiEndpoint: "https://status.imgix.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+  },
+
+  // --- Monitoring ---
+  {
+    name: "Datadog",
+    slug: "datadog",
+    category: "Monitoring",
+    statusPageUrl: "https://status.datadoghq.com",
+    apiEndpoint: "https://status.datadoghq.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+    logoUrl: "https://imgix.datadoghq.com/img/favicons/datadog_favicon-32x32.png",
+  },
+  {
+    name: "New Relic",
+    slug: "newrelic",
+    category: "Monitoring",
+    statusPageUrl: "https://status.newrelic.com",
+    apiEndpoint: "https://status.newrelic.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+  },
+  {
+    name: "Sentry",
+    slug: "sentry",
+    category: "Monitoring",
+    statusPageUrl: "https://status.sentry.io",
+    apiEndpoint: "https://status.sentry.io/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+    logoUrl: "https://sentry.io/favicon.ico",
+  },
+  {
+    name: "PagerDuty",
+    slug: "pagerduty",
+    category: "Monitoring",
+    statusPageUrl: "https://status.pagerduty.com",
+    apiEndpoint: "https://status.pagerduty.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+    logoUrl: "https://www.pagerduty.com/favicon.ico",
+  },
+
+  // --- Auth & Identity ---
+  {
+    name: "Auth0",
+    slug: "auth0",
+    category: "Auth & Identity",
+    statusPageUrl: "https://status.auth0.com",
+    apiEndpoint: "https://status.auth0.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+  },
+  {
+    name: "Okta",
+    slug: "okta",
+    category: "Auth & Identity",
+    statusPageUrl: "https://status.okta.com",
+    apiEndpoint: "https://status.okta.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+  },
+
+  // --- AI & ML ---
+  {
+    name: "OpenAI",
+    slug: "openai",
+    category: "AI & ML",
+    statusPageUrl: "https://status.openai.com",
+    apiEndpoint: "https://status.openai.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+    logoUrl: "https://openai.com/favicon.ico",
+  },
+  {
+    name: "Anthropic",
+    slug: "anthropic",
+    category: "AI & ML",
+    statusPageUrl: "https://status.anthropic.com",
+    apiEndpoint: "https://status.anthropic.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+    logoUrl: "https://anthropic.com/favicon.ico",
+  },
+
+  // --- Developer Tools ---
+  {
+    name: "Postman",
+    slug: "postman",
+    category: "Developer Tools",
+    statusPageUrl: "https://status.postman.com",
+    apiEndpoint: "https://status.postman.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+    logoUrl: "https://www.postman.com/favicon-32x32.png",
+  },
+  {
+    name: "npm",
+    slug: "npm",
+    category: "Developer Tools",
+    statusPageUrl: "https://status.npmjs.org",
+    apiEndpoint: "https://status.npmjs.org/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+    logoUrl: "https://static-production.npmjs.com/b0f1a8318363185cc2ea6a40ac23eeb2.png",
+  },
+  {
+    name: "Docker Hub",
+    slug: "docker",
+    category: "Developer Tools",
+    statusPageUrl: "https://www.dockerstatus.com",
+    apiEndpoint: "https://www.dockerstatus.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+    logoUrl: "https://www.docker.com/favicon.ico",
+  },
+  {
+    name: "HashiCorp",
+    slug: "hashicorp",
+    category: "Developer Tools",
+    statusPageUrl: "https://status.hashicorp.com",
+    apiEndpoint: "https://status.hashicorp.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+  },
+  {
+    name: "Linear",
+    slug: "linear",
+    category: "Developer Tools",
+    statusPageUrl: "https://linearstatus.com",
+    apiEndpoint: "https://linearstatus.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+    logoUrl: "https://linear.app/favicon.ico",
+  },
+
+  // --- Search ---
+  {
+    name: "Algolia",
+    slug: "algolia",
+    category: "Search",
+    statusPageUrl: "https://status.algolia.com",
+    apiEndpoint: "https://status.algolia.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+    logoUrl: "https://www.algolia.com/favicon.ico",
+  },
+  {
+    name: "LaunchDarkly",
+    slug: "launchdarkly",
+    category: "Search",
+    statusPageUrl: "https://status.launchdarkly.com",
+    apiEndpoint: "https://status.launchdarkly.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+  },
+
+  // --- Support & CRM ---
+  {
+    name: "Intercom",
+    slug: "intercom",
+    category: "Support & CRM",
+    statusPageUrl: "https://status.intercom.com",
+    apiEndpoint: "https://status.intercom.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+  },
+  {
+    name: "Zendesk",
+    slug: "zendesk",
+    category: "Support & CRM",
+    statusPageUrl: "https://status.zendesk.com",
+    apiEndpoint: "https://status.zendesk.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+  },
+  {
+    name: "HubSpot",
+    slug: "hubspot",
+    category: "Support & CRM",
+    statusPageUrl: "https://status.hubspot.com",
+    apiEndpoint: "https://status.hubspot.com/api/v2/summary.json",
+    sourceType: "STATUSPAGE_API",
+  },
+];
+
+export const CATEGORIES = [...new Set(services.map((s) => s.category))].sort();
