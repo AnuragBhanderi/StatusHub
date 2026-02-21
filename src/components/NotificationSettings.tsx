@@ -89,7 +89,8 @@ export default function NotificationSettings({
         alignItems: "center",
         justifyContent: "center",
         zIndex: 300,
-        padding: 16,
+        padding: 24,
+        overflowY: "auto",
       }}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -102,8 +103,10 @@ export default function NotificationSettings({
           borderRadius: 16,
           maxWidth: 440,
           width: "100%",
+          maxHeight: "calc(100vh - 48px)",
+          overflowY: "auto",
           boxShadow: t.cardShadow,
-          overflow: "hidden",
+          margin: "auto",
         }}
       >
         {/* Header */}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useUser } from "@/lib/user-context";
 import type { Theme } from "@/config/themes";
 import NotificationSettings from "@/components/NotificationSettings";
@@ -193,21 +194,23 @@ export default function UserMenu({ t }: UserMenuProps) {
         )}
       </div>
 
-      {showNotifSettings && (
-        <NotificationSettings
-          t={t}
-          pushEnabled={notificationPrefs.pushEnabled}
-          emailEnabled={notificationPrefs.emailEnabled}
-          emailAddress={notificationPrefs.emailAddress}
-          severityThreshold={notificationPrefs.severityThreshold}
-          userEmail={email}
-          onSave={(prefs) => {
-            saveNotificationPrefs(prefs);
-            setShowNotifSettings(false);
-          }}
-          onClose={() => setShowNotifSettings(false)}
-        />
-      )}
+      {showNotifSettings &&
+        createPortal(
+          <NotificationSettings
+            t={t}
+            pushEnabled={notificationPrefs.pushEnabled}
+            emailEnabled={notificationPrefs.emailEnabled}
+            emailAddress={notificationPrefs.emailAddress}
+            severityThreshold={notificationPrefs.severityThreshold}
+            userEmail={email}
+            onSave={(prefs) => {
+              saveNotificationPrefs(prefs);
+              setShowNotifSettings(false);
+            }}
+            onClose={() => setShowNotifSettings(false)}
+          />,
+          document.body
+        )}
     </>
   );
 }

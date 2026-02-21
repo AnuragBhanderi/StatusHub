@@ -11,20 +11,29 @@ import {
 } from "react";
 import type { User, Session, SupabaseClient } from "@supabase/supabase-js";
 import type { ThemeKey } from "@/config/themes";
-import type { UserPreferences } from "@/lib/types/supabase";
 
 // Event-based toast so user-context can fire toasts without being inside ToastProvider
 type ToastType = "error" | "success" | "info";
 type ToastListener = (message: string, type: ToastType) => void;
 const toastListeners: ToastListener[] = [];
+const pendingToasts: { message: string; type: ToastType }[] = [];
 export function onToast(listener: ToastListener) {
   toastListeners.push(listener);
+  // Flush any toasts that fired before the listener was registered
+  if (pendingToasts.length > 0) {
+    pendingToasts.forEach(({ message, type }) => listener(message, type));
+    pendingToasts.length = 0;
+  }
   return () => {
     const idx = toastListeners.indexOf(listener);
     if (idx >= 0) toastListeners.splice(idx, 1);
   };
 }
 function fireToast(message: string, type: ToastType = "error") {
+  if (toastListeners.length === 0) {
+    pendingToasts.push({ message, type });
+    return;
+  }
   toastListeners.forEach((fn) => fn(message, type));
 }
 
@@ -125,74 +134,91 @@ export function UserProvider({ children }: { children: ReactNode }) {
     if (savedThreshold) setSeverityThresholdState(savedThreshold);
   }
 
-  async function loadFromDatabase(client: AnySupabaseClient, userId: string) {
-    const { data, error } = await client
-      .from("user_preferences")
-      .select("*")
-      .eq("user_id", userId)
-      .single();
+  // Load preferences via server API route (bypasses client-side RLS issues)
+  async function loadFromAPI() {
+    try {
+      const res = await fetch("/api/preferences");
+      if (!res.ok) {
+        fireToast("Failed to load preferences (HTTP " + res.status + ")");
+        loadFromLocalStorage();
+        return;
+      }
+      const data = await res.json();
 
-    const prefs = data as UserPreferences | null;
-    if (prefs && !error) {
-      setThemeState(prefs.theme as ThemeKey);
-      setCompactState(prefs.compact);
-      setMyStackState(prefs.my_stack);
-    } else {
+      if (data.preferences) {
+        setThemeState(data.preferences.theme as ThemeKey);
+        setCompactState(data.preferences.compact);
+        setMyStackState(data.preferences.my_stack || []);
+        // Also sync to localStorage
+        localStorage.setItem("statushub_theme", data.preferences.theme);
+        localStorage.setItem("statushub_compact", data.preferences.compact ? "true" : "false");
+        localStorage.setItem("statushub_my_stack", JSON.stringify(data.preferences.my_stack || []));
+      } else {
+        // No preferences in DB yet — use localStorage and save to DB
+        loadFromLocalStorage();
+        await savePreferencesToAPI({
+          theme: localStorage.getItem("statushub_theme") || "dark",
+          compact: localStorage.getItem("statushub_compact") === "true",
+          my_stack: (() => {
+            try { return JSON.parse(localStorage.getItem("statushub_my_stack") || "[]"); }
+            catch { return []; }
+          })(),
+        });
+      }
+
+      if (data.notificationPreferences) {
+        setPushEnabledState(data.notificationPreferences.push_enabled ?? false);
+        setEmailEnabledState(data.notificationPreferences.email_enabled ?? false);
+        setEmailAddressState(data.notificationPreferences.email_address ?? "");
+        setSeverityThresholdState(data.notificationPreferences.severity_threshold ?? "all");
+      }
+    } catch (err) {
+      fireToast("Network error loading preferences");
       loadFromLocalStorage();
-    }
-
-    // Load notification preferences
-    const { data: notifData } = await client
-      .from("notification_preferences")
-      .select("*")
-      .eq("user_id", userId)
-      .single();
-
-    if (notifData) {
-      setPushEnabledState(notifData.push_enabled ?? false);
-      setEmailEnabledState(notifData.email_enabled ?? false);
-      setEmailAddressState(notifData.email_address ?? "");
-      setSeverityThresholdState(notifData.severity_threshold ?? "all");
     }
   }
 
-  async function migrateLocalStorageToDatabase(
-    client: AnySupabaseClient,
-    userId: string
-  ) {
-    const { data: existing } = await client
-      .from("user_preferences")
-      .select("id")
-      .eq("user_id", userId)
-      .single();
-
-    if (existing) {
-      await loadFromDatabase(client, userId);
-      return;
-    }
-
-    const localTheme = localStorage.getItem("statushub_theme") || "dark";
-    const localCompact = localStorage.getItem("statushub_compact") === "true";
-    let localStack: string[] = [];
+  // Save preferences via server API route
+  async function savePreferencesToAPI(updates: {
+    theme?: string;
+    compact?: boolean;
+    my_stack?: string[];
+  }) {
     try {
-      localStack = JSON.parse(
-        localStorage.getItem("statushub_my_stack") || "[]"
-      );
+      const res = await fetch("/api/preferences", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preferences: updates }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        fireToast("Failed to save: " + (data.errors?.join(", ") || res.statusText));
+      }
     } catch {
-      /* ignore */
+      fireToast("Network error saving preferences");
     }
+  }
 
-    const { error } = await client.from("user_preferences").insert({
-      user_id: userId,
-      theme: localTheme,
-      compact: localCompact,
-      my_stack: localStack,
-    });
-    if (error) fireToast("Failed to save preferences: " + error.message);
-
-    setThemeState(localTheme as ThemeKey);
-    setCompactState(localCompact);
-    setMyStackState(localStack);
+  // Save notification preferences via server API route
+  async function saveNotificationPrefsToAPI(prefs: {
+    push_enabled: boolean;
+    email_enabled: boolean;
+    email_address: string;
+    severity_threshold: string;
+  }) {
+    try {
+      const res = await fetch("/api/preferences", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notificationPreferences: prefs }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        fireToast("Failed to save: " + (data.errors?.join(", ") || res.statusText));
+      }
+    } catch {
+      fireToast("Network error saving notification settings");
+    }
   }
 
   // Initialize
@@ -209,15 +235,19 @@ export function UserProvider({ children }: { children: ReactNode }) {
       const client = createClient();
       supabaseRef.current = client;
 
-      client.auth.getSession().then(({ data: { session: s } }) => {
-        setSession(s);
-        setUser(s?.user ?? null);
-        if (s?.user) {
-          loadFromDatabase(client, s.user.id).then(() => setIsLoading(false));
+      // Use getUser() to validate session, then load preferences via API
+      client.auth.getUser().then(async ({ data: { user: u } }) => {
+        if (u) {
+          const { data: { session: s } } = await client.auth.getSession();
+          setSession(s);
+          setUser(u);
+          await loadFromAPI();
         } else {
+          setUser(null);
+          setSession(null);
           loadFromLocalStorage();
-          setIsLoading(false);
         }
+        setIsLoading(false);
       });
 
       const {
@@ -227,7 +257,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
         setUser(s?.user ?? null);
 
         if (event === "SIGNED_IN" && s?.user) {
-          await migrateLocalStorageToDatabase(client, s.user.id);
+          // On fresh sign-in, load from API (will migrate localStorage if needed)
+          await loadFromAPI();
         }
         if (event === "SIGNED_OUT") {
           loadFromLocalStorage();
@@ -240,7 +271,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe?.();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Save to localStorage + DB
+  // Save to localStorage + DB via API
   const savePreferences = useCallback(
     async (updates: {
       theme?: string;
@@ -262,18 +293,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
           );
       }
 
-      const client = supabaseRef.current;
-      if (client && user) {
-        const { error } = await client
-          .from("user_preferences")
-          .upsert({ user_id: user.id, ...updates, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
-        if (error) fireToast("Failed to save preferences: " + error.message);
+      if (user) {
+        await savePreferencesToAPI(updates);
       }
     },
     [user]
   );
 
-  // Save notification preferences to localStorage + DB
+  // Save notification preferences to localStorage + DB via API
   const saveNotificationPrefs = useCallback(
     async (prefs: {
       push_enabled: boolean;
@@ -293,22 +320,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
         localStorage.setItem("statushub_severity_threshold", prefs.severity_threshold);
       }
 
-      const client = supabaseRef.current;
-      if (client && user) {
-        const { error } = await client
-          .from("notification_preferences")
-          .upsert(
-            {
-              user_id: user.id,
-              push_enabled: prefs.push_enabled,
-              email_enabled: prefs.email_enabled,
-              email_address: prefs.email_address,
-              severity_threshold: prefs.severity_threshold,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: "user_id" }
-          );
-        if (error) fireToast("Failed to save notification settings: " + error.message);
+      if (user) {
+        await saveNotificationPrefsToAPI(prefs);
       }
     },
     [user]
