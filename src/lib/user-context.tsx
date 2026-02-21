@@ -13,6 +13,21 @@ import type { User, Session, SupabaseClient } from "@supabase/supabase-js";
 import type { ThemeKey } from "@/config/themes";
 import type { UserPreferences } from "@/lib/types/supabase";
 
+// Event-based toast so user-context can fire toasts without being inside ToastProvider
+type ToastType = "error" | "success" | "info";
+type ToastListener = (message: string, type: ToastType) => void;
+const toastListeners: ToastListener[] = [];
+export function onToast(listener: ToastListener) {
+  toastListeners.push(listener);
+  return () => {
+    const idx = toastListeners.indexOf(listener);
+    if (idx >= 0) toastListeners.splice(idx, 1);
+  };
+}
+function fireToast(message: string, type: ToastType = "error") {
+  toastListeners.forEach((fn) => fn(message, type));
+}
+
 const SUPABASE_ENABLED =
   !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
   !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -167,12 +182,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
       /* ignore */
     }
 
-    await client.from("user_preferences").insert({
+    const { error } = await client.from("user_preferences").insert({
       user_id: userId,
       theme: localTheme,
       compact: localCompact,
       my_stack: localStack,
     });
+    if (error) fireToast("Failed to save preferences: " + error.message);
 
     setThemeState(localTheme as ThemeKey);
     setCompactState(localCompact);
@@ -248,9 +264,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
       const client = supabaseRef.current;
       if (client && user) {
-        await client
+        const { error } = await client
           .from("user_preferences")
-          .upsert({ user_id: user.id, ...updates }, { onConflict: "user_id" });
+          .upsert({ user_id: user.id, ...updates, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+        if (error) fireToast("Failed to save preferences: " + error.message);
       }
     },
     [user]
@@ -258,7 +275,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   // Save notification preferences to localStorage + DB
   const saveNotificationPrefs = useCallback(
-    (prefs: {
+    async (prefs: {
       push_enabled: boolean;
       email_enabled: boolean;
       email_address: string;
@@ -278,7 +295,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
       const client = supabaseRef.current;
       if (client && user) {
-        client
+        const { error } = await client
           .from("notification_preferences")
           .upsert(
             {
@@ -290,8 +307,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
               updated_at: new Date().toISOString(),
             },
             { onConflict: "user_id" }
-          )
-          .then(() => {});
+          );
+        if (error) fireToast("Failed to save notification settings: " + error.message);
       }
     },
     [user]

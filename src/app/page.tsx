@@ -15,7 +15,9 @@ import ServiceDetailView from "@/components/ServiceDetailView";
 import UserMenu from "@/components/UserMenu";
 import NotificationBell from "@/components/NotificationBell";
 import AuthButton from "@/components/AuthButton";
+import { ToastProvider, useToast } from "@/components/Toast";
 import { usePushNotifications } from "@/lib/hooks/use-push-notifications";
+import { onToast } from "@/lib/user-context";
 
 interface ServiceData {
   id: string;
@@ -45,6 +47,16 @@ interface ServiceData {
 }
 
 export default function Home() {
+  const { preferences: { theme } } = useUser();
+  const t = THEMES[theme];
+  return (
+    <ToastProvider t={t}>
+      <HomeInner />
+    </ToastProvider>
+  );
+}
+
+function HomeInner() {
   const {
     user,
     isLoading: authLoading,
@@ -71,6 +83,12 @@ export default function Home() {
 
   // Browser push notifications for My Stack services
   usePushNotifications(services, myStack, notificationPrefs.pushEnabled);
+
+  // Bridge user-context toast events to the Toast UI
+  const { showToast } = useToast();
+  useEffect(() => {
+    return onToast((message, type) => showToast(message, type));
+  }, [showToast]);
 
   // Keyboard shortcuts: Cmd/Ctrl+K to focus search, Esc to close detail
   useEffect(() => {

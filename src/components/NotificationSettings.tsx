@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Theme } from "@/config/themes";
+import { useToast } from "@/components/Toast";
 
 interface NotificationSettingsProps {
   t: Theme;
@@ -35,6 +36,7 @@ export default function NotificationSettings({
   const [threshold, setThreshold] = useState(severityThreshold || "all");
   const [testStatus, setTestStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [saving, setSaving] = useState(false);
+  const { showToast } = useToast();
 
   const pushPermission =
     typeof window !== "undefined" && "Notification" in window
@@ -50,6 +52,7 @@ export default function NotificationSettings({
       severity_threshold: threshold,
     });
     setSaving(false);
+    showToast("Notification settings saved", "success");
   };
 
   const handleTestEmail = async () => {
