@@ -1,0 +1,27 @@
+name: Check Service Status
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'  # Every 5 minutes
+  workflow_dispatch: {}     # Allow manual trigger
+
+jobs:
+  check-status:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger status check
+        run: |
+          response=$(curl -s -w "\n%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.SITE_URL }}/api/cron/check-status")
+
+          http_code=$(echo "$response" | tail -1)
+          body=$(echo "$response" | head -n -1)
+
+          echo "Status: $http_code"
+          echo "Response: $body"
+
+          if [ "$http_code" != "200" ]; then
+            echo "::error::Cron check failed with status $http_code"
+            exit 1
+          fi
