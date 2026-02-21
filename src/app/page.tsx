@@ -65,6 +65,7 @@ function HomeInner() {
     setTheme,
     setCompact,
     toggleStack,
+    setMyStack,
     notificationPrefs,
     setPushEnabled,
   } = useUser();
@@ -80,6 +81,8 @@ function HomeInner() {
   const [error, setError] = useState(false);
   const [sortMode, setSortMode] = useState<"status" | "name" | "category">("status");
   const searchRef = useRef<HTMLInputElement>(null);
+  const lastFetchTimeRef = useRef(Date.now());
+  const [countdown, setCountdown] = useState(180);
 
   // Browser push notifications for My Stack services
   usePushNotifications(services, myStack, notificationPrefs.pushEnabled);
@@ -117,6 +120,14 @@ function HomeInner() {
     if (serviceParam) {
       setSelectedSlug(serviceParam);
     }
+    const stackParam = params.get("stack");
+    if (stackParam && !user) {
+      const slugs = stackParam.split(",").filter(Boolean);
+      if (slugs.length > 0) {
+        setMyStack(slugs);
+        setShowMyStack(true);
+      }
+    }
   }, []);
 
   // Fetch live data from API
@@ -139,12 +150,23 @@ function HomeInner() {
       setError(true);
     }
     setLoading(false);
+    lastFetchTimeRef.current = Date.now();
+    setCountdown(180);
   }, []);
 
   useEffect(() => {
     fetchServices();
     const interval = setInterval(fetchServices, 180000); // 3 min
     return () => clearInterval(interval);
+  }, []);
+
+  // Countdown timer for next refresh
+  useEffect(() => {
+    const id = setInterval(() => {
+      const remaining = 180 - Math.floor((Date.now() - lastFetchTimeRef.current) / 1000);
+      setCountdown(Math.max(0, remaining));
+    }, 1000);
+    return () => clearInterval(id);
   }, []);
 
   const t = THEMES[theme];
@@ -341,7 +363,7 @@ function HomeInner() {
                       whiteSpace: "nowrap",
                     }}
                   >
-                    Live {lastUpdated ? `· ${lastUpdated}` : ""}
+                    Live{lastUpdated ? ` · ${lastUpdated}` : ""}{!loading && ` · ${Math.floor(countdown / 60)}:${String(countdown % 60).padStart(2, "0")}`}
                   </span>
                 </div>
                 <MyStackToggle
@@ -350,6 +372,38 @@ function HomeInner() {
                   count={myStack.length}
                   t={t}
                 />
+                {showMyStack && myStack.length > 0 && (
+                  <button
+                    onClick={() => {
+                      const url = `${window.location.origin}?stack=${myStack.join(",")}`;
+                      navigator.clipboard.writeText(url).then(() => {
+                        showToast("Stack link copied!", "success");
+                      });
+                    }}
+                    title="Share your stack as a URL"
+                    aria-label="Share stack"
+                    style={{
+                      background: "transparent",
+                      border: `1px solid ${t.border}`,
+                      borderRadius: 9,
+                      width: 34,
+                      height: 34,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                      color: t.textMuted,
+                      transition: "all 0.15s",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8" />
+                      <polyline points="16 6 12 2 8 6" />
+                      <line x1="12" y1="2" x2="12" y2="15" />
+                    </svg>
+                  </button>
+                )}
               </>
             )}
           </div>

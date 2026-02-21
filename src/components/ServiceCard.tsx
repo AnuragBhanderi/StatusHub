@@ -1,16 +1,24 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import type { Theme } from "@/config/themes";
 import { STATUS_DISPLAY, MONITORING_DISPLAY } from "@/lib/normalizer";
 import StatusDot from "./StatusDot";
 import LogoIcon from "./LogoIcon";
+
+function formatDuration(ms: number): string {
+  const mins = Math.floor(ms / 60000);
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  return `${hrs}h ${mins % 60}m`;
+}
 
 interface ServiceCardProps {
   name: string;
   slug: string;
   currentStatus: string;
   logoUrl?: string | null;
-  latestIncident?: { title: string } | null;
+  latestIncident?: { title: string; startedAt?: string; status?: string } | null;
   monitoringCount?: number;
   latestMonitoringIncident?: { title: string } | null;
   compact?: boolean;
@@ -36,6 +44,21 @@ export default function ServiceCard({
 }: ServiceCardProps) {
   const sc = STATUS_DISPLAY[currentStatus] || STATUS_DISPLAY.OPERATIONAL;
   const hasIssue = currentStatus !== "OPERATIONAL";
+
+  // Live incident duration timer
+  const showDuration = hasIssue && latestIncident?.startedAt &&
+    latestIncident.status !== "resolved" && latestIncident.status !== "postmortem";
+  const [elapsed, setElapsed] = useState(() =>
+    showDuration ? Date.now() - new Date(latestIncident!.startedAt!).getTime() : 0
+  );
+  useEffect(() => {
+    if (!showDuration) return;
+    setElapsed(Date.now() - new Date(latestIncident!.startedAt!).getTime());
+    const id = setInterval(() => {
+      setElapsed(Date.now() - new Date(latestIncident!.startedAt!).getTime());
+    }, 60000);
+    return () => clearInterval(id);
+  }, [showDuration, latestIncident?.startedAt]);
 
   return (
     <div
@@ -188,6 +211,19 @@ export default function ServiceCard({
           >
             {latestIncident.title}
           </p>
+          {showDuration && elapsed > 0 && (
+            <p
+              style={{
+                margin: "4px 0 0",
+                fontSize: 11,
+                color: t.textMuted,
+                fontFamily: "var(--font-mono)",
+                opacity: 0.7,
+              }}
+            >
+              Ongoing for {formatDuration(elapsed)}
+            </p>
+          )}
         </div>
       )}
       {!compact && !hasIssue && monitoringCount > 0 && latestMonitoringIncident && (

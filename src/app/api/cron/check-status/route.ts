@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
       );
 
       const transporter = getTransporter();
-      const statusHubUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://statushub.vercel.app";
+      const statusHubUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://statushub-seven.vercel.app";
 
       for (const change of changes) {
         for (const pref of allPrefs || []) {
@@ -102,6 +102,10 @@ export async function GET(request: NextRequest) {
               subject,
               html,
               text,
+              headers: {
+                "List-Unsubscribe": `<${statusHubUrl}>`,
+                "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+              },
             });
 
             // Log the sent email

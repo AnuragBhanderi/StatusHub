@@ -68,7 +68,7 @@ export function statusChangeEmail({
         <tr><td style="padding:16px 24px;border-top:1px solid #e4e4e7;background:#fafafa;">
           <p style="margin:0;font-size:11px;color:#a1a1aa;">
             You're receiving this because you have email alerts enabled for ${serviceName}.
-            <a href="${settingsUrl}" style="color:#6366f1;text-decoration:none;">Manage settings</a>
+            <a href="${settingsUrl}" style="color:#6366f1;text-decoration:none;">Manage notifications</a> · <a href="${settingsUrl}" style="color:#a1a1aa;text-decoration:none;">Unsubscribe</a>
           </p>
         </td></tr>
       </table>

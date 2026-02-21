@@ -28,7 +28,7 @@ export async function POST() {
     );
   }
 
-  const statusHubUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://statushub.vercel.app";
+  const statusHubUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://statushub-seven.vercel.app";
 
   const { subject, html, text } = statusChangeEmail({
     serviceName: "GitHub",
@@ -47,6 +47,10 @@ export async function POST() {
       subject: `[TEST] ${subject}`,
       html,
       text,
+      headers: {
+        "List-Unsubscribe": `<${statusHubUrl}>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
     });
 
     return NextResponse.json({ success: true, sentTo: emailAddress });
