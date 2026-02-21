@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { THEMES, type ThemeKey } from "@/config/themes";
 import { CATEGORIES } from "@/config/services";
-import { STATUS_DISPLAY } from "@/lib/normalizer";
+import { STATUS_DISPLAY, MONITORING_DISPLAY } from "@/lib/normalizer";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import StatusBanner from "@/components/StatusBanner";
 import SearchBar from "@/components/SearchBar";
@@ -29,6 +29,14 @@ interface ServiceData {
     impact: string;
     startedAt: string;
   } | null;
+  monitoringCount: number;
+  latestMonitoringIncident: {
+    id: string;
+    title: string;
+    status: string;
+    impact: string;
+    startedAt: string;
+  } | null;
 }
 
 export default function Home() {
@@ -43,6 +51,28 @@ export default function Home() {
   const [hasMounted, setHasMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [sortMode, setSortMode] = useState<"status" | "name" | "category">("status");
+  const [compact, setCompact] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // Keyboard shortcuts: Cmd/Ctrl+K to focus search, Esc to close detail
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+      if (e.key === "Escape") {
+        if (selectedSlug) {
+          setSelectedSlug(null);
+        } else if (document.activeElement === searchRef.current) {
+          searchRef.current?.blur();
+        }
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedSlug]);
 
   // Load persisted state from localStorage and read URL params on mount
   useEffect(() => {
@@ -59,6 +89,8 @@ export default function Home() {
         // ignore
       }
     }
+    const savedCompact = localStorage.getItem("statushub_compact");
+    if (savedCompact === "true") setCompact(true);
     // Read ?service= query param (used by /service/[slug] redirect)
     const params = new URLSearchParams(window.location.search);
     const serviceParam = params.get("service");
@@ -109,6 +141,13 @@ export default function Home() {
     }
   }, [myStack, hasMounted]);
 
+  // Persist compact
+  useEffect(() => {
+    if (hasMounted) {
+      localStorage.setItem("statushub_compact", compact ? "true" : "false");
+    }
+  }, [compact, hasMounted]);
+
   const t = THEMES[theme];
 
   const toggleStack = useCallback(
@@ -132,12 +171,24 @@ export default function Home() {
           s.category.toLowerCase().includes(q)
       );
     }
-    return list.sort((a, b) => {
+    const sorter = (a: ServiceData, b: ServiceData) => {
+      if (sortMode === "name") return a.name.localeCompare(b.name);
+      if (sortMode === "category") {
+        const cat = a.category.localeCompare(b.category);
+        if (cat !== 0) return cat;
+        return a.name.localeCompare(b.name);
+      }
       const orderA = STATUS_DISPLAY[a.currentStatus]?.order ?? 5;
       const orderB = STATUS_DISPLAY[b.currentStatus]?.order ?? 5;
       return orderA - orderB;
-    });
-  }, [search, activeCategory, showMyStack, myStack, services]);
+    };
+    return {
+      issues: list.filter((s) => s.currentStatus !== "OPERATIONAL").sort(sorter),
+      monitoring: list.filter((s) => s.currentStatus === "OPERATIONAL" && s.monitoringCount > 0).sort(sorter),
+      operational: list.filter((s) => s.currentStatus === "OPERATIONAL" && s.monitoringCount === 0).sort(sorter),
+      total: list.length,
+    };
+  }, [search, activeCategory, showMyStack, myStack, services, sortMode]);
 
   const operational = services.filter(
     (s) => s.currentStatus === "OPERATIONAL"
@@ -146,18 +197,21 @@ export default function Home() {
   const servicesWithIssues = services.filter(
     (s) => s.currentStatus !== "OPERATIONAL"
   );
+  const monitoringOnlyCount = services.filter(
+    (s) => s.currentStatus === "OPERATIONAL" && s.monitoringCount > 0
+  ).length;
 
   const selectedService = selectedSlug
     ? services.find((s) => s.slug === selectedSlug) || null
     : null;
 
-  // Prevent flash of wrong theme
+  // Prevent flash of wrong theme — use transparent to avoid showing wrong color
   if (!hasMounted) {
     return (
       <div
         style={{
           minHeight: "100vh",
-          background: "#0c0c10",
+          background: "transparent",
         }}
       />
     );
@@ -188,6 +242,7 @@ export default function Home() {
         }}
       >
         <div
+          className="sh-header-inner"
           style={{
             maxWidth: 1120,
             margin: "0 auto",
@@ -212,11 +267,13 @@ export default function Home() {
                 fontSize: 15,
                 fontWeight: 700,
                 fontFamily: "var(--font-mono)",
+                flexShrink: 0,
               }}
             >
               S
             </div>
             <span
+              className="sh-header-logo"
               style={{
                 fontWeight: 700,
                 fontSize: 19,
@@ -227,6 +284,7 @@ export default function Home() {
               StatusHub
             </span>
             <span
+              className="sh-header-beta"
               style={{
                 fontSize: 9,
                 fontWeight: 700,
@@ -236,16 +294,18 @@ export default function Home() {
                 borderRadius: 5,
                 fontFamily: "var(--font-mono)",
                 letterSpacing: 1.5,
+                flexShrink: 0,
               }}
             >
               BETA
             </span>
           </div>
           <div
+            className="sh-header-right"
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 14,
+              gap: 12,
             }}
           >
             <ThemeSwitcher theme={theme} setTheme={setTheme} t={t} />
@@ -265,13 +325,16 @@ export default function Home() {
                       borderRadius: "50%",
                       background: t.accentGreen,
                       boxShadow: `0 0 8px ${t.accentGreen}80`,
+                      flexShrink: 0,
                     }}
                   />
                   <span
+                    className="sh-live-text"
                     style={{
                       fontSize: 11,
-                      color: t.textFaint,
+                      color: t.textMuted,
                       fontFamily: "var(--font-mono)",
+                      whiteSpace: "nowrap",
                     }}
                   >
                     Live {lastUpdated ? `· ${lastUpdated}` : ""}
@@ -290,6 +353,7 @@ export default function Home() {
       </header>
 
       <main
+        className="sh-main"
         style={{
           maxWidth: 1120,
           margin: "0 auto",
@@ -444,7 +508,7 @@ export default function Home() {
                 width: 48,
                 height: 48,
                 borderRadius: 14,
-                background: "rgba(255,82,82,0.08)",
+                background: "rgba(239,68,68,0.10)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -456,7 +520,7 @@ export default function Home() {
                 height="24"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="#ff5252"
+                stroke="#ef4444"
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -542,10 +606,94 @@ export default function Home() {
               issues={issues}
               servicesWithIssues={servicesWithIssues}
               onSelectService={setSelectedSlug}
+              monitoringOnlyCount={monitoringOnlyCount}
               t={t}
             />
 
-            <SearchBar value={search} onChange={setSearch} t={t} />
+            <SearchBar ref={searchRef} value={search} onChange={setSearch} t={t} />
+
+            {/* Sort + Compact toolbar */}
+            <div
+              className="sh-toolbar"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 12,
+                gap: 8,
+              }}
+            >
+              {/* Sort toggle */}
+              <div
+                className="sh-toolbar-sort"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 2,
+                  background: t.tagBg,
+                  borderRadius: 10,
+                  border: `1px solid ${t.border}`,
+                  padding: 3,
+                }}
+              >
+                {(["status", "name", "category"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => setSortMode(mode)}
+                    style={{
+                      background: sortMode === mode ? t.pillActiveBg : "transparent",
+                      border: sortMode === mode ? `1px solid ${t.pillActiveBorder}` : "1px solid transparent",
+                      borderRadius: 7,
+                      padding: "5px 14px",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      fontFamily: "var(--font-mono)",
+                      color: sortMode === mode ? t.pillActiveText : t.textMuted,
+                      cursor: "pointer",
+                      transition: "all 0.15s",
+                      textTransform: "capitalize",
+                    }}
+                  >
+                    {mode}
+                  </button>
+                ))}
+              </div>
+
+              {/* Compact toggle */}
+              <button
+                onClick={() => setCompact(!compact)}
+                title={compact ? "Switch to comfortable view" : "Switch to compact view"}
+                style={{
+                  background: compact ? t.pillActiveBg : t.tagBg,
+                  border: `1px solid ${compact ? t.pillActiveBorder : t.border}`,
+                  borderRadius: 10,
+                  padding: "6px 14px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  cursor: "pointer",
+                  transition: "all 0.15s",
+                  color: compact ? t.pillActiveText : t.textMuted,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  fontFamily: "var(--font-mono)",
+                  flexShrink: 0,
+                }}
+              >
+                {compact ? (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
+                    <line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
+                  </svg>
+                ) : (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
+                    <rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
+                  </svg>
+                )}
+                {compact ? "Compact" : "Comfy"}
+              </button>
+            </div>
 
             <CategoryPills
               categories={CATEGORIES}
@@ -554,7 +702,7 @@ export default function Home() {
               t={t}
             />
 
-            {filtered.length === 0 ? (
+            {filtered.total === 0 ? (
               <div style={{ textAlign: "center", padding: "80px 0" }}>
                 <div
                   style={{
@@ -600,35 +748,159 @@ export default function Home() {
                 </div>
               </div>
             ) : (
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns:
-                    "repeat(auto-fill, minmax(290px, 1fr))",
-                  gap: 10,
-                }}
-              >
-                {filtered.map((s, i) => (
-                  <div
-                    key={s.slug}
-                    className="animate-slide-up"
-                    style={{
-                      animationDelay: `${i * 0.025}s`,
-                    }}
-                  >
-                    <ServiceCard
-                      name={s.name}
-                      slug={s.slug}
-                      currentStatus={s.currentStatus}
-                      logoUrl={s.logoUrl}
-                      latestIncident={s.latestIncident}
-                      onClick={() => setSelectedSlug(s.slug)}
-                      isInStack={myStack.includes(s.slug)}
-                      onToggleStack={() => toggleStack(s.slug)}
-                      t={t}
-                    />
-                  </div>
-                ))}
+              <div style={{ display: "flex", flexDirection: "column", gap: compact ? 16 : 24 }}>
+                {/* Issues section */}
+                {filtered.issues.length > 0 && (
+                  <section>
+                    <div style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      marginBottom: compact ? 8 : 12,
+                    }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                      </svg>
+                      <span style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: t.textSecondary,
+                        fontFamily: "var(--font-mono)",
+                        letterSpacing: 0.5,
+                        textTransform: "uppercase",
+                      }}>
+                        Issues ({filtered.issues.length})
+                      </span>
+                    </div>
+                    <div
+                      className="sh-grid"
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: compact
+                          ? "repeat(auto-fill, minmax(200px, 1fr))"
+                          : "repeat(auto-fill, minmax(280px, 1fr))",
+                        gap: compact ? 6 : 10,
+                      }}
+                    >
+                      {filtered.issues.map((s, i) => (
+                        <div key={s.slug} className="animate-slide-up" style={{ animationDelay: `${i * 0.025}s` }}>
+                          <ServiceCard
+                            name={s.name} slug={s.slug} currentStatus={s.currentStatus}
+                            logoUrl={s.logoUrl} latestIncident={s.latestIncident}
+                            monitoringCount={s.monitoringCount}
+                            latestMonitoringIncident={s.latestMonitoringIncident}
+                            compact={compact} onClick={() => setSelectedSlug(s.slug)}
+                            isInStack={myStack.includes(s.slug)}
+                            onToggleStack={() => toggleStack(s.slug)} t={t}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {/* Monitoring section */}
+                {filtered.monitoring.length > 0 && (
+                  <section>
+                    <div style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      marginBottom: compact ? 8 : 12,
+                    }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={MONITORING_DISPLAY.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                      <span style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: t.textSecondary,
+                        fontFamily: "var(--font-mono)",
+                        letterSpacing: 0.5,
+                        textTransform: "uppercase",
+                      }}>
+                        Monitoring ({filtered.monitoring.length})
+                      </span>
+                    </div>
+                    <div
+                      className="sh-grid"
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: compact
+                          ? "repeat(auto-fill, minmax(200px, 1fr))"
+                          : "repeat(auto-fill, minmax(280px, 1fr))",
+                        gap: compact ? 6 : 10,
+                      }}
+                    >
+                      {filtered.monitoring.map((s, i) => (
+                        <div key={s.slug} className="animate-slide-up" style={{ animationDelay: `${i * 0.025}s` }}>
+                          <ServiceCard
+                            name={s.name} slug={s.slug} currentStatus={s.currentStatus}
+                            logoUrl={s.logoUrl} latestIncident={s.latestIncident}
+                            monitoringCount={s.monitoringCount}
+                            latestMonitoringIncident={s.latestMonitoringIncident}
+                            compact={compact} onClick={() => setSelectedSlug(s.slug)}
+                            isInStack={myStack.includes(s.slug)}
+                            onToggleStack={() => toggleStack(s.slug)} t={t}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {/* Operational section */}
+                {filtered.operational.length > 0 && (
+                  <section>
+                    <div style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      marginBottom: compact ? 8 : 12,
+                    }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      <span style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: t.textSecondary,
+                        fontFamily: "var(--font-mono)",
+                        letterSpacing: 0.5,
+                        textTransform: "uppercase",
+                      }}>
+                        Operational ({filtered.operational.length})
+                      </span>
+                    </div>
+                    <div
+                      className="sh-grid"
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: compact
+                          ? "repeat(auto-fill, minmax(200px, 1fr))"
+                          : "repeat(auto-fill, minmax(280px, 1fr))",
+                        gap: compact ? 6 : 10,
+                      }}
+                    >
+                      {filtered.operational.map((s, i) => (
+                        <div key={s.slug} className="animate-slide-up" style={{ animationDelay: `${i * 0.025}s` }}>
+                          <ServiceCard
+                            name={s.name} slug={s.slug} currentStatus={s.currentStatus}
+                            logoUrl={s.logoUrl} latestIncident={s.latestIncident}
+                            monitoringCount={s.monitoringCount}
+                            latestMonitoringIncident={s.latestMonitoringIncident}
+                            compact={compact} onClick={() => setSelectedSlug(s.slug)}
+                            isInStack={myStack.includes(s.slug)}
+                            onToggleStack={() => toggleStack(s.slug)} t={t}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
               </div>
             )}
 

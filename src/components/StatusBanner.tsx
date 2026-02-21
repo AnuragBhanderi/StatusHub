@@ -1,7 +1,7 @@
 "use client";
 
 import type { Theme } from "@/config/themes";
-import { STATUS_DISPLAY } from "@/lib/normalizer";
+import { STATUS_DISPLAY, MONITORING_DISPLAY } from "@/lib/normalizer";
 
 interface ServiceSummary {
   slug: string;
@@ -15,6 +15,7 @@ interface StatusBannerProps {
   issues: number;
   servicesWithIssues: ServiceSummary[];
   onSelectService: (slug: string) => void;
+  monitoringOnlyCount?: number;
   t: Theme;
 }
 
@@ -24,10 +25,12 @@ export default function StatusBanner({
   issues,
   servicesWithIssues,
   onSelectService,
+  monitoringOnlyCount = 0,
   t,
 }: StatusBannerProps) {
   return (
     <div
+      className="sh-banner"
       style={{
         background: issues > 0 ? t.bannerIssueBg : t.bannerOkBg,
         borderRadius: 16,
@@ -49,8 +52,8 @@ export default function StatusBanner({
           borderRadius: "50%",
           background:
             issues > 0
-              ? `rgba(255,82,82,${t.bannerCircle})`
-              : `rgba(61,220,132,${t.bannerCircle})`,
+              ? `rgba(239,68,68,${t.bannerCircle})`
+              : `rgba(22,163,74,${t.bannerCircle})`,
         }}
       />
       <div
@@ -63,6 +66,7 @@ export default function StatusBanner({
         }}
       >
         <div
+          className="sh-banner-icon"
           style={{
             width: 44,
             height: 44,
@@ -72,8 +76,8 @@ export default function StatusBanner({
             justifyContent: "center",
             background:
               issues > 0
-                ? "rgba(255,82,82,0.08)"
-                : "rgba(61,220,132,0.08)",
+                ? "rgba(239,68,68,0.10)"
+                : "rgba(22,163,74,0.10)",
             fontSize: 22,
             flexShrink: 0,
           }}
@@ -84,7 +88,7 @@ export default function StatusBanner({
               height="22"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="#ff5252"
+              stroke="#ef4444"
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -99,7 +103,7 @@ export default function StatusBanner({
               height="22"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="#3ddc84"
+              stroke="#16a34a"
               strokeWidth="2.5"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -108,8 +112,9 @@ export default function StatusBanner({
             </svg>
           )}
         </div>
-        <div style={{ flex: 1, minWidth: 180 }}>
+        <div style={{ flex: 1, minWidth: 140 }}>
           <div
+            className="sh-banner-title"
             style={{
               fontWeight: 700,
               fontSize: 17,
@@ -123,6 +128,7 @@ export default function StatusBanner({
               : "All systems operational"}
           </div>
           <div
+            className="sh-banner-subtitle"
             style={{
               fontSize: 13,
               color: t.textMuted,
@@ -132,9 +138,37 @@ export default function StatusBanner({
           >
             {operational}/{total} services fully operational
           </div>
+          {issues === 0 && monitoringOnlyCount > 0 && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                marginTop: 6,
+                fontSize: 12,
+                color: MONITORING_DISPLAY.color,
+                fontFamily: "var(--font-sans)",
+              }}
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke={MONITORING_DISPLAY.color}
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+              {monitoringOnlyCount} service{monitoringOnlyCount > 1 ? "s" : ""} with deployed fixes being monitored
+            </div>
+          )}
         </div>
         {issues > 0 && (
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <div className="sh-banner-chips" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {servicesWithIssues.map((s) => {
               const sc =
                 STATUS_DISPLAY[s.currentStatus] ||

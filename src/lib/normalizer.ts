@@ -68,18 +68,23 @@ export const STATUS_DISPLAY: Record<
   string,
   { label: string; color: string; order: number }
 > = {
-  OPERATIONAL: { label: "Operational", color: "#3ddc84", order: 4 },
-  DEGRADED: { label: "Degraded", color: "#ffd54f", order: 2 },
-  PARTIAL_OUTAGE: { label: "Partial Outage", color: "#ffab40", order: 1 },
-  MAJOR_OUTAGE: { label: "Major Outage", color: "#ff5252", order: 0 },
+  OPERATIONAL: { label: "Operational", color: "#16a34a", order: 4 },
+  DEGRADED: { label: "Degraded", color: "#ca8a04", order: 2 },
+  PARTIAL_OUTAGE: { label: "Partial Outage", color: "#ea580c", order: 1 },
+  MAJOR_OUTAGE: { label: "Major Outage", color: "#ef4444", order: 0 },
   MAINTENANCE: { label: "Maintenance", color: "#448aff", order: 3 },
   UNKNOWN: { label: "Unknown", color: "#9e9e9e", order: 5 },
+};
+
+export const MONITORING_DISPLAY = {
+  label: "Fix Deployed — Monitoring",
+  color: "#0891b2",
 };
 
 export const IMPACT_DISPLAY: Record<string, { label: string; color: string }> =
   {
     NONE: { label: "None", color: "#9e9e9e" },
-    MINOR: { label: "Minor", color: "#ffd54f" },
-    MAJOR: { label: "Major", color: "#ffab40" },
-    CRITICAL: { label: "Critical", color: "#ff5252" },
+    MINOR: { label: "Minor", color: "#ca8a04" },
+    MAJOR: { label: "Major", color: "#ea580c" },
+    CRITICAL: { label: "Critical", color: "#ef4444" },
   };

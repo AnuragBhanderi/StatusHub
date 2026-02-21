@@ -131,6 +131,7 @@ export default function ThemeSwitcher({
       >
         <ThemeIcon themeKey={theme} active={true} t={t} />
         <span
+          className="sh-theme-label"
           style={{
             fontSize: 12,
             fontWeight: 600,

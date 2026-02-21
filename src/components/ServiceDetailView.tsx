@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import type { Theme } from "@/config/themes";
-import { STATUS_DISPLAY, IMPACT_DISPLAY } from "@/lib/normalizer";
+import { STATUS_DISPLAY, IMPACT_DISPLAY, MONITORING_DISPLAY } from "@/lib/normalizer";
 import StatusDot from "./StatusDot";
 import LogoIcon from "./LogoIcon";
 
@@ -80,6 +80,19 @@ function formatTime(date: string) {
   });
 }
 
+function formatAbsoluteDate(date: string) {
+  return new Date(date).toLocaleString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+}
+
 function formatFullDate(date: string) {
   return new Date(date).toLocaleString("en-US", {
     month: "short",
@@ -88,6 +101,19 @@ function formatFullDate(date: string) {
     minute: "2-digit",
     hour12: true,
   });
+}
+
+function formatDuration(startedAt: string) {
+  const diff = Date.now() - new Date(startedAt).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "< 1m";
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  const remainMins = mins % 60;
+  if (hrs < 24) return `${hrs}h ${remainMins}m`;
+  const days = Math.floor(hrs / 24);
+  const remainHrs = hrs % 24;
+  return `${days}d ${remainHrs}h`;
 }
 
 const INCIDENT_STATUS_ICON: Record<string, string> = {
@@ -180,6 +206,14 @@ export default function ServiceDetailView({
     new Set()
   );
   const [showAllOperational, setShowAllOperational] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [, setDurationTick] = useState(0);
+
+  // Tick every 30s to keep live durations fresh
+  useEffect(() => {
+    const timer = setInterval(() => setDurationTick((t) => t + 1), 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     async function fetchDetail() {
@@ -188,16 +222,16 @@ export default function ServiceDetailView({
         if (res.ok) {
           const data = await res.json();
           setDetail(data);
-          // Auto-switch to incidents tab if there are active incidents
-          const hasActive = data.incidents?.some(
-            (i: Incident) => !i.resolvedAt
+          // Auto-switch to incidents tab if there are truly active incidents
+          const hasTrulyActive = data.incidents?.some(
+            (i: Incident) => !i.resolvedAt && i.status !== "MONITORING"
           );
-          if (hasActive) {
+          if (hasTrulyActive) {
             setActiveTab("incidents");
-            // Auto-expand active incidents
+            // Auto-expand only truly active incidents
             const activeIds = new Set<string>(
               data.incidents
-                .filter((i: Incident) => !i.resolvedAt)
+                .filter((i: Incident) => !i.resolvedAt && i.status !== "MONITORING")
                 .map((i: Incident) => i.id)
             );
             setExpandedIncidents(activeIds);
@@ -216,8 +250,12 @@ export default function ServiceDetailView({
   const cfg = STATUS_DISPLAY[currentStatus] || STATUS_DISPLAY.OPERATIONAL;
 
   const components = detail?.components || [];
-  const activeIncidents = useMemo(
-    () => (detail?.incidents || []).filter((i) => !i.resolvedAt),
+  const trulyActiveIncidents = useMemo(
+    () => (detail?.incidents || []).filter((i) => !i.resolvedAt && i.status !== "MONITORING"),
+    [detail]
+  );
+  const monitoringIncidents = useMemo(
+    () => (detail?.incidents || []).filter((i) => !i.resolvedAt && i.status === "MONITORING"),
     [detail]
   );
   const resolvedIncidents = useMemo(
@@ -294,6 +332,7 @@ export default function ServiceDetailView({
 
       {/* Hero header card */}
       <div
+        className="sh-banner"
         style={{
           background: t.surface,
           borderRadius: 16,
@@ -318,6 +357,7 @@ export default function ServiceDetailView({
         />
 
         <div
+          className="sh-detail-header"
           style={{
             display: "flex",
             alignItems: "flex-start",
@@ -331,7 +371,7 @@ export default function ServiceDetailView({
             size={56}
             t={t}
           />
-          <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={{ flex: 1, minWidth: 160 }}>
             <div
               style={{
                 display: "flex",
@@ -427,7 +467,9 @@ export default function ServiceDetailView({
                     <circle cx="12" cy="12" r="10" />
                     <polyline points="12 6 12 12 16 14" />
                   </svg>
-                  Updated {formatTime(detail.service.lastPolledAt)}
+                  <span title={formatAbsoluteDate(detail.service.lastPolledAt)}>
+                    Updated {formatTime(detail.service.lastPolledAt)}
+                  </span>
                 </span>
               )}
               <a
@@ -466,6 +508,46 @@ export default function ServiceDetailView({
             </div>
           </div>
 
+          <div className="sh-detail-actions" style={{ display: "flex", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
+          {/* Share button */}
+          <button
+            onClick={() => {
+              const url = `${window.location.origin}/service/${service.slug}`;
+              navigator.clipboard.writeText(url).then(() => {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+              });
+            }}
+            title="Copy link to this service"
+            style={{
+              background: copied ? t.accentGreen + "12" : "transparent",
+              color: copied ? t.accentGreen : t.textMuted,
+              border: `1px solid ${copied ? t.accentGreen + "40" : t.border}`,
+              borderRadius: 10,
+              padding: "9px 18px",
+              cursor: "pointer",
+              fontSize: 13,
+              fontWeight: 600,
+              fontFamily: "var(--font-sans)",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              transition: "all 0.15s",
+            }}
+          >
+            {copied ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+              </svg>
+            )}
+            {copied ? "Copied!" : "Share"}
+          </button>
+
           {/* Stack button */}
           <button
             onClick={onToggleStack}
@@ -483,7 +565,6 @@ export default function ServiceDetailView({
               alignItems: "center",
               gap: 6,
               transition: "all 0.15s",
-              flexShrink: 0,
             }}
           >
             <svg
@@ -498,6 +579,7 @@ export default function ServiceDetailView({
             </svg>
             {isInStack ? "In My Stack" : "Add to Stack"}
           </button>
+          </div>
         </div>
       </div>
 
@@ -563,6 +645,7 @@ export default function ServiceDetailView({
         <>
           {/* Tab switcher */}
           <div
+            className="sh-detail-tabs"
             style={{
               display: "flex",
               gap: 4,
@@ -579,13 +662,13 @@ export default function ServiceDetailView({
                 flex: 1,
                 padding: "10px 16px",
                 borderRadius: 9,
-                border: "none",
+                border: activeTab === "components" ? `1px solid ${t.pillActiveBorder}` : "1px solid transparent",
                 cursor: "pointer",
                 fontSize: 13,
                 fontWeight: 600,
                 fontFamily: "var(--font-sans)",
                 background:
-                  activeTab === "components" ? t.surfaceHover : "transparent",
+                  activeTab === "components" ? t.pillActiveBg : "transparent",
                 color:
                   activeTab === "components" ? t.text : t.textMuted,
                 display: "flex",
@@ -633,13 +716,13 @@ export default function ServiceDetailView({
                 flex: 1,
                 padding: "10px 16px",
                 borderRadius: 9,
-                border: "none",
+                border: activeTab === "incidents" ? `1px solid ${t.pillActiveBorder}` : "1px solid transparent",
                 cursor: "pointer",
                 fontSize: 13,
                 fontWeight: 600,
                 fontFamily: "var(--font-sans)",
                 background:
-                  activeTab === "incidents" ? t.surfaceHover : "transparent",
+                  activeTab === "incidents" ? t.pillActiveBg : "transparent",
                 color:
                   activeTab === "incidents" ? t.text : t.textMuted,
                 display: "flex",
@@ -664,13 +747,13 @@ export default function ServiceDetailView({
                 <line x1="12" y1="16" x2="12.01" y2="16" />
               </svg>
               Incidents
-              {activeIncidents.length > 0 && (
+              {trulyActiveIncidents.length > 0 && (
                 <span
                   style={{
                     fontSize: 10,
                     fontWeight: 700,
                     color: "#fff",
-                    background: "#ff5252",
+                    background: "#ef4444",
                     padding: "1px 7px",
                     borderRadius: 10,
                     fontFamily: "var(--font-mono)",
@@ -678,7 +761,24 @@ export default function ServiceDetailView({
                     textAlign: "center",
                   }}
                 >
-                  {activeIncidents.length}
+                  {trulyActiveIncidents.length}
+                </span>
+              )}
+              {trulyActiveIncidents.length === 0 && monitoringIncidents.length > 0 && (
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: "#fff",
+                    background: MONITORING_DISPLAY.color,
+                    padding: "1px 7px",
+                    borderRadius: 10,
+                    fontFamily: "var(--font-mono)",
+                    minWidth: 18,
+                    textAlign: "center",
+                  }}
+                >
+                  {monitoringIncidents.length}
                 </span>
               )}
             </button>
@@ -687,6 +787,213 @@ export default function ServiceDetailView({
           {/* Components tab */}
           {activeTab === "components" && (
             <div className="animate-fade-in">
+              {/* Banner: truly active incidents but no affected components */}
+              {trulyActiveIncidents.length > 0 && affectedComponents.length === 0 && (
+                <div
+                  style={{
+                    background: `${(IMPACT_DISPLAY[trulyActiveIncidents[0]?.impact] || IMPACT_DISPLAY.NONE).color}08`,
+                    borderRadius: 14,
+                    border: `1px solid ${(IMPACT_DISPLAY[trulyActiveIncidents[0]?.impact] || IMPACT_DISPLAY.NONE).color}20`,
+                    padding: "16px 20px",
+                    marginBottom: 12,
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 14,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 8,
+                      background: `${(IMPACT_DISPLAY[trulyActiveIncidents[0]?.impact] || IMPACT_DISPLAY.NONE).color}14`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                      marginTop: 1,
+                    }}
+                  >
+                    <svg
+                      width="15"
+                      height="15"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke={(IMPACT_DISPLAY[trulyActiveIncidents[0]?.impact] || IMPACT_DISPLAY.NONE).color}
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="8" x2="12" y2="12" />
+                      <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: t.text,
+                        marginBottom: 4,
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {trulyActiveIncidents.length === 1
+                        ? "Active incident not tied to a specific component"
+                        : `${trulyActiveIncidents.length} active incidents not tied to specific components`}
+                    </div>
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: 12,
+                        color: t.textMuted,
+                        lineHeight: 1.55,
+                      }}
+                    >
+                      This service has {trulyActiveIncidents.length === 1 ? "an open incident" : `${trulyActiveIncidents.length} open incidents`}, but no individual components are reporting issues. The issue may affect an unlisted subsystem or is still under investigation.
+                    </p>
+                    <button
+                      onClick={() => setActiveTab("incidents")}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: 0,
+                        marginTop: 8,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        fontFamily: "var(--font-mono)",
+                        color: t.accentPrimary,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 5,
+                        transition: "opacity 0.15s",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.7")}
+                      onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+                    >
+                      View {trulyActiveIncidents.length === 1 ? "incident" : "incidents"}
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                        <polyline points="12 5 19 12 12 19" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Teal banner: monitoring-only incidents, no truly active */}
+              {trulyActiveIncidents.length === 0 && monitoringIncidents.length > 0 && affectedComponents.length === 0 && (
+                <div
+                  style={{
+                    background: `${MONITORING_DISPLAY.color}08`,
+                    borderRadius: 14,
+                    border: `1px solid ${MONITORING_DISPLAY.color}20`,
+                    padding: "16px 20px",
+                    marginBottom: 12,
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 14,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 8,
+                      background: `${MONITORING_DISPLAY.color}14`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                      marginTop: 1,
+                    }}
+                  >
+                    <svg
+                      width="15"
+                      height="15"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke={MONITORING_DISPLAY.color}
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: t.text,
+                        marginBottom: 4,
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      Fix deployed — monitoring {monitoringIncidents.length === 1 ? "an incident" : `${monitoringIncidents.length} incidents`}
+                    </div>
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: 12,
+                        color: t.textMuted,
+                        lineHeight: 1.55,
+                      }}
+                    >
+                      A fix has been deployed and the service is being monitored. All components are operational.
+                    </p>
+                    <button
+                      onClick={() => setActiveTab("incidents")}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: 0,
+                        marginTop: 8,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        fontFamily: "var(--font-mono)",
+                        color: MONITORING_DISPLAY.color,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 5,
+                        transition: "opacity 0.15s",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.7")}
+                      onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+                    >
+                      View {monitoringIncidents.length === 1 ? "incident" : "incidents"}
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                        <polyline points="12 5 19 12 12 19" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {components.length > 0 ? (
                 <>
                   {/* Health summary bar */}
@@ -723,7 +1030,7 @@ export default function ServiceDetailView({
                               componentHealth.operational ===
                               componentHealth.total
                                 ? t.accentGreen
-                                : "#ffab40"
+                                : "#ea580c"
                             }
                             strokeWidth="4"
                             strokeLinecap="round"
@@ -808,7 +1115,7 @@ export default function ServiceDetailView({
                             fontSize: 10,
                             fontWeight: 700,
                             color: "#fff",
-                            background: "#ff5252",
+                            background: "#ef4444",
                             padding: "1px 7px",
                             borderRadius: 10,
                             fontFamily: "var(--font-mono)",
@@ -1208,7 +1515,7 @@ export default function ServiceDetailView({
           {activeTab === "incidents" && (
             <div className="animate-fade-in">
               {/* Active incidents */}
-              {activeIncidents.length > 0 && (
+              {trulyActiveIncidents.length > 0 && (
                 <div style={{ marginBottom: 20 }}>
                   <div
                     style={{
@@ -1231,7 +1538,7 @@ export default function ServiceDetailView({
                       gap: 10,
                     }}
                   >
-                    {activeIncidents.map((inc) => {
+                    {trulyActiveIncidents.map((inc) => {
                       const ic =
                         IMPACT_DISPLAY[inc.impact] || IMPACT_DISPLAY.NONE;
                       const isExpanded = expandedIncidents.has(inc.id);
@@ -1345,8 +1652,22 @@ export default function ServiceDetailView({
                                     color: t.textFaint,
                                     fontFamily: "var(--font-mono)",
                                   }}
+                                  title={formatAbsoluteDate(inc.startedAt)}
                                 >
                                   Started {formatTime(inc.startedAt)}
+                                </span>
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    fontWeight: 600,
+                                    color: "#ef4444",
+                                    background: "#ef444412",
+                                    padding: "2px 8px",
+                                    borderRadius: 5,
+                                    fontFamily: "var(--font-mono)",
+                                  }}
+                                >
+                                  Ongoing {formatDuration(inc.startedAt)}
                                 </span>
                               </div>
                             </div>
@@ -1541,6 +1862,368 @@ export default function ServiceDetailView({
                 </div>
               )}
 
+              {/* Fix Deployed — Monitoring section */}
+              {monitoringIncidents.length > 0 && (
+                <div style={{ marginBottom: 20 }}>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: MONITORING_DISPLAY.color,
+                      fontFamily: "var(--font-mono)",
+                      textTransform: "uppercase",
+                      letterSpacing: 1.5,
+                      marginBottom: 10,
+                      paddingLeft: 2,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke={MONITORING_DISPLAY.color}
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                    {MONITORING_DISPLAY.label}
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 10,
+                    }}
+                  >
+                    {monitoringIncidents.map((inc) => {
+                      const ic =
+                        IMPACT_DISPLAY[inc.impact] || IMPACT_DISPLAY.NONE;
+                      const isExpanded = expandedIncidents.has(inc.id);
+                      return (
+                        <div
+                          key={inc.id}
+                          style={{
+                            background: t.surface,
+                            borderRadius: 14,
+                            border: `1px solid ${MONITORING_DISPLAY.color}20`,
+                            overflow: "hidden",
+                          }}
+                        >
+                          {/* Incident header */}
+                          <button
+                            onClick={() => toggleIncident(inc.id)}
+                            style={{
+                              width: "100%",
+                              background: "none",
+                              border: "none",
+                              cursor: "pointer",
+                              padding: "18px 22px",
+                              display: "flex",
+                              alignItems: "flex-start",
+                              gap: 14,
+                              textAlign: "left",
+                            }}
+                          >
+                            {/* Monitoring eye icon */}
+                            <div
+                              style={{
+                                width: 36,
+                                height: 36,
+                                borderRadius: 9,
+                                background: MONITORING_DISPLAY.color + "14",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                flexShrink: 0,
+                                marginTop: 1,
+                              }}
+                            >
+                              <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke={MONITORING_DISPLAY.color}
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                <circle cx="12" cy="12" r="3" />
+                              </svg>
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div
+                                style={{
+                                  fontSize: 14,
+                                  fontWeight: 600,
+                                  color: t.text,
+                                  marginBottom: 6,
+                                  lineHeight: 1.4,
+                                }}
+                              >
+                                {inc.title}
+                              </div>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 8,
+                                  flexWrap: "wrap",
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    color: MONITORING_DISPLAY.color,
+                                    background: MONITORING_DISPLAY.color + "18",
+                                    padding: "2px 8px",
+                                    borderRadius: 5,
+                                    fontFamily: "var(--font-mono)",
+                                    textTransform: "uppercase",
+                                    letterSpacing: 0.5,
+                                  }}
+                                >
+                                  Monitoring
+                                </span>
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    fontWeight: 600,
+                                    color: ic.color,
+                                    background: ic.color + "18",
+                                    padding: "2px 8px",
+                                    borderRadius: 5,
+                                    fontFamily: "var(--font-mono)",
+                                    textTransform: "uppercase",
+                                    letterSpacing: 0.5,
+                                    opacity: 0.7,
+                                  }}
+                                >
+                                  {ic.label} Impact
+                                </span>
+                                <span
+                                  style={{
+                                    fontSize: 11,
+                                    color: t.textFaint,
+                                    fontFamily: "var(--font-mono)",
+                                  }}
+                                  title={formatAbsoluteDate(inc.startedAt)}
+                                >
+                                  Started {formatTime(inc.startedAt)}
+                                </span>
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    fontWeight: 600,
+                                    color: MONITORING_DISPLAY.color,
+                                    background: MONITORING_DISPLAY.color + "12",
+                                    padding: "2px 8px",
+                                    borderRadius: 5,
+                                    fontFamily: "var(--font-mono)",
+                                  }}
+                                >
+                                  Watching {formatDuration(inc.startedAt)}
+                                </span>
+                              </div>
+                            </div>
+                            {/* Expand chevron */}
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke={t.textFaint}
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              style={{
+                                flexShrink: 0,
+                                marginTop: 4,
+                                transform: isExpanded
+                                  ? "rotate(180deg)"
+                                  : "rotate(0deg)",
+                                transition: "transform 0.2s ease",
+                              }}
+                            >
+                              <polyline points="6 9 12 15 18 9" />
+                            </svg>
+                          </button>
+
+                          {/* Timeline updates */}
+                          {isExpanded && inc.updates.length > 0 && (
+                            <div
+                              style={{
+                                padding: "0 22px 20px",
+                                borderTop: `1px solid ${t.divider}`,
+                              }}
+                            >
+                              <div style={{ paddingTop: 16 }}>
+                                {inc.updates.map((u, ui) => {
+                                  const iconType =
+                                    INCIDENT_STATUS_ICON[u.status] || "search";
+                                  const isLast =
+                                    ui === inc.updates.length - 1;
+                                  return (
+                                    <div
+                                      key={u.id}
+                                      style={{
+                                        display: "flex",
+                                        gap: 14,
+                                        position: "relative",
+                                      }}
+                                    >
+                                      <div
+                                        style={{
+                                          display: "flex",
+                                          flexDirection: "column",
+                                          alignItems: "center",
+                                          width: 24,
+                                          flexShrink: 0,
+                                        }}
+                                      >
+                                        <div
+                                          style={{
+                                            width: 24,
+                                            height: 24,
+                                            borderRadius: "50%",
+                                            background: t.tagBg,
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            flexShrink: 0,
+                                            zIndex: 1,
+                                          }}
+                                        >
+                                          <StatusIcon
+                                            type={iconType}
+                                            color={t.textMuted}
+                                            size={12}
+                                          />
+                                        </div>
+                                        {!isLast && (
+                                          <div
+                                            style={{
+                                              width: 1.5,
+                                              flex: 1,
+                                              background: t.divider,
+                                              minHeight: 16,
+                                            }}
+                                          />
+                                        )}
+                                      </div>
+                                      <div
+                                        style={{
+                                          flex: 1,
+                                          paddingBottom: isLast ? 0 : 20,
+                                          minWidth: 0,
+                                        }}
+                                      >
+                                        <div
+                                          style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: 8,
+                                            marginBottom: 5,
+                                            flexWrap: "wrap",
+                                          }}
+                                        >
+                                          <span
+                                            style={{
+                                              fontSize: 12,
+                                              fontWeight: 600,
+                                              color: t.textSecondary,
+                                            }}
+                                          >
+                                            {u.status.charAt(0) +
+                                              u.status.slice(1).toLowerCase()}
+                                          </span>
+                                          <span
+                                            style={{
+                                              fontSize: 11,
+                                              color: t.textFaint,
+                                              fontFamily: "var(--font-mono)",
+                                            }}
+                                          >
+                                            {formatFullDate(u.createdAt)}
+                                          </span>
+                                        </div>
+                                        <p
+                                          style={{
+                                            margin: 0,
+                                            fontSize: 13,
+                                            color: t.textMuted,
+                                            lineHeight: 1.65,
+                                            wordBreak: "break-word",
+                                          }}
+                                        >
+                                          {u.body}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Source link */}
+                              {inc.sourceUrl && (
+                                <a
+                                  href={inc.sourceUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 5,
+                                    fontSize: 11,
+                                    color: MONITORING_DISPLAY.color,
+                                    fontFamily: "var(--font-mono)",
+                                    textDecoration: "none",
+                                    marginTop: 14,
+                                    paddingLeft: 38,
+                                    transition: "opacity 0.15s",
+                                  }}
+                                  onMouseEnter={(e) =>
+                                    (e.currentTarget.style.opacity = "0.7")
+                                  }
+                                  onMouseLeave={(e) =>
+                                    (e.currentTarget.style.opacity = "1")
+                                  }
+                                >
+                                  <svg
+                                    width="11"
+                                    height="11"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  >
+                                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                                    <polyline points="15 3 21 3 21 9" />
+                                    <line x1="10" y1="14" x2="21" y2="3" />
+                                  </svg>
+                                  View on status page
+                                </a>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Resolved incidents */}
               {resolvedIncidents.length > 0 && (
                 <div>
@@ -1665,6 +2348,7 @@ export default function ServiceDetailView({
                                     color: t.textFaint,
                                     fontFamily: "var(--font-mono)",
                                   }}
+                                  title={formatAbsoluteDate(inc.resolvedAt!)}
                                 >
                                   Resolved {formatTime(inc.resolvedAt!)}
                                 </span>
@@ -1815,7 +2499,8 @@ export default function ServiceDetailView({
               )}
 
               {/* No incidents at all */}
-              {activeIncidents.length === 0 &&
+              {trulyActiveIncidents.length === 0 &&
+                monitoringIncidents.length === 0 &&
                 resolvedIncidents.length === 0 && (
                   <div
                     style={{

@@ -42,6 +42,9 @@ export default function LogoIcon({
     );
   }
 
+  // On light theme, add a subtle drop-shadow so white/light logos remain visible
+  const isLight = t.name === "Light";
+
   return (
     <div
       style={{
@@ -63,7 +66,12 @@ export default function LogoIcon({
         alt=""
         width={size * 0.6}
         height={size * 0.6}
-        style={{ objectFit: "contain" }}
+        style={{
+          objectFit: "contain",
+          filter: isLight
+            ? "drop-shadow(0 0 0.5px rgba(0,0,0,0.4)) drop-shadow(0 0 1px rgba(0,0,0,0.2))"
+            : undefined,
+        }}
         onError={() => setErr(true)}
       />
     </div>

@@ -18,6 +18,14 @@ export interface LiveServiceData {
     impact: string;
     startedAt: string;
   } | null;
+  monitoringCount: number;
+  latestMonitoringIncident: {
+    id: string;
+    title: string;
+    status: string;
+    impact: string;
+    startedAt: string;
+  } | null;
   components?: {
     name: string;
     status: string;
@@ -158,6 +166,8 @@ export async function fetchAllServicesLive(): Promise<LiveServiceData[]> {
             lastPolledAt: null,
             incidentCount: 0,
             latestIncident: null,
+            monitoringCount: 0,
+            latestMonitoringIncident: null,
           } satisfies LiveServiceData;
         }
 
@@ -175,16 +185,25 @@ export async function fetchAllServicesLive(): Promise<LiveServiceData[]> {
             lastPolledAt: null,
             incidentCount: 0,
             latestIncident: null,
+            monitoringCount: 0,
+            latestMonitoringIncident: null,
           } satisfies LiveServiceData;
         }
 
         let status = mapStatuspageIndicator(data.status.indicator);
-        const activeIncidents = data.incidents.filter((i) => !i.resolved_at);
+        const unresolvedIncidents = data.incidents.filter((i) => !i.resolved_at);
 
-        // Fix: Statuspage can report "none" indicator even with active incidents.
-        // If there are unresolved incidents, override status based on worst impact.
-        if (status === "OPERATIONAL" && activeIncidents.length > 0) {
-          const worstImpact = activeIncidents.reduce((worst, inc) => {
+        // Split unresolved incidents: monitoring/none-impact are not truly active
+        const trulyActiveIncidents = unresolvedIncidents.filter(
+          (i) => i.status !== "monitoring" && i.impact !== "none"
+        );
+        const monitoringIncidents = unresolvedIncidents.filter(
+          (i) => i.status === "monitoring"
+        );
+
+        // Only override status for truly active incidents (not monitoring/none)
+        if (status === "OPERATIONAL" && trulyActiveIncidents.length > 0) {
+          const worstImpact = trulyActiveIncidents.reduce((worst, inc) => {
             const order: Record<string, number> = { critical: 3, major: 2, minor: 1, none: 0 };
             return (order[inc.impact] ?? 0) > (order[worst] ?? 0) ? inc.impact : worst;
           }, "none");
@@ -202,14 +221,24 @@ export async function fetchAllServicesLive(): Promise<LiveServiceData[]> {
           statusPageUrl: config.statusPageUrl,
           logoUrl: config.logoUrl || null,
           lastPolledAt: new Date().toISOString(),
-          incidentCount: activeIncidents.length,
-          latestIncident: activeIncidents[0]
+          incidentCount: trulyActiveIncidents.length,
+          latestIncident: trulyActiveIncidents[0]
             ? {
-                id: activeIncidents[0].id,
-                title: activeIncidents[0].name,
-                status: mapIncidentStatus(activeIncidents[0].status),
-                impact: mapIncidentImpact(activeIncidents[0].impact),
-                startedAt: activeIncidents[0].started_at,
+                id: trulyActiveIncidents[0].id,
+                title: trulyActiveIncidents[0].name,
+                status: mapIncidentStatus(trulyActiveIncidents[0].status),
+                impact: mapIncidentImpact(trulyActiveIncidents[0].impact),
+                startedAt: trulyActiveIncidents[0].started_at,
+              }
+            : null,
+          monitoringCount: monitoringIncidents.length,
+          latestMonitoringIncident: monitoringIncidents[0]
+            ? {
+                id: monitoringIncidents[0].id,
+                title: monitoringIncidents[0].name,
+                status: mapIncidentStatus(monitoringIncidents[0].status),
+                impact: mapIncidentImpact(monitoringIncidents[0].impact),
+                startedAt: monitoringIncidents[0].started_at,
               }
             : null,
           components: data.components
@@ -264,11 +293,14 @@ export async function fetchServiceDetailLive(slug: string): Promise<LiveServiceD
   if (!data) return null;
 
   let status = mapStatuspageIndicator(data.status.indicator);
-  const activeIncidents = data.incidents.filter((i) => !i.resolved_at);
+  const unresolvedIncidents = data.incidents.filter((i) => !i.resolved_at);
 
-  // Fix: override status if there are active incidents but indicator says "none"
-  if (status === "OPERATIONAL" && activeIncidents.length > 0) {
-    const worstImpact = activeIncidents.reduce((worst, inc) => {
+  // Only override status for truly active incidents (not monitoring/none-impact)
+  const trulyActiveIncidents = unresolvedIncidents.filter(
+    (i) => i.status !== "monitoring" && i.impact !== "none"
+  );
+  if (status === "OPERATIONAL" && trulyActiveIncidents.length > 0) {
+    const worstImpact = trulyActiveIncidents.reduce((worst, inc) => {
       const order: Record<string, number> = { critical: 3, major: 2, minor: 1, none: 0 };
       return (order[inc.impact] ?? 0) > (order[worst] ?? 0) ? inc.impact : worst;
     }, "none");

@@ -25,7 +25,7 @@ export default function MyStackToggle({
         color: showMyStack ? t.accentPrimary : t.textMuted,
         border: `1px solid ${showMyStack ? t.stackBtnBorder : t.border}`,
         borderRadius: 9,
-        padding: "8px 16px",
+        padding: "7px 14px",
         fontSize: 13,
         fontWeight: 600,
         cursor: "pointer",
@@ -34,6 +34,7 @@ export default function MyStackToggle({
         display: "flex",
         alignItems: "center",
         gap: 6,
+        flexShrink: 0,
       }}
     >
       <svg
@@ -43,10 +44,13 @@ export default function MyStackToggle({
         fill={showMyStack ? t.accentPrimary : "none"}
         stroke={showMyStack ? t.accentPrimary : "currentColor"}
         strokeWidth="2"
+        style={{ flexShrink: 0 }}
       >
         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
       </svg>
-      My Stack{count > 0 ? ` (${count})` : ""}
+      <span className="sh-mystack-label">
+        My Stack{count > 0 ? ` (${count})` : ""}
+      </span>
     </button>
   );
 }

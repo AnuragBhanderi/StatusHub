@@ -16,6 +16,10 @@
   width: 0;
 }
 
+.sh-pills::-webkit-scrollbar {
+  display: none;
+}
+
 @keyframes pulse-dot {
   0%,
   100% {
@@ -93,6 +97,116 @@
 .theme-transition {
   transition: background-color 0.3s ease, color 0.3s ease,
     border-color 0.3s ease;
+}
+
+/* ── Responsive layout ── */
+
+/* Tablet and below */
+@media (max-width: 768px) {
+  .sh-header-inner {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+  .sh-main {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    padding-top: 20px !important;
+  }
+  .sh-banner {
+    padding: 16px 18px !important;
+    border-radius: 12px !important;
+  }
+  .sh-banner-icon {
+    width: 36px !important;
+    height: 36px !important;
+  }
+  .sh-banner-icon svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+  .sh-grid {
+    gap: 8px !important;
+  }
+  .sh-header-right {
+    gap: 8px !important;
+  }
+  .sh-toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .sh-toolbar-sort {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+  .sh-toolbar-sort button {
+    flex: 1 !important;
+    text-align: center !important;
+  }
+  .sh-hide-tablet {
+    display: none !important;
+  }
+  .sh-theme-label {
+    display: none !important;
+  }
+  .sh-mystack-label {
+    display: none !important;
+  }
+  .sh-live-text {
+    display: none !important;
+  }
+  .sh-pills {
+    margin-bottom: 20px !important;
+  }
+  .sh-detail-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+  .sh-detail-actions {
+    width: 100% !important;
+    justify-content: flex-start !important;
+  }
+  .sh-detail-tabs {
+    gap: 4px !important;
+  }
+  .sh-detail-tabs button {
+    padding: 8px 14px !important;
+    font-size: 12px !important;
+  }
+}
+
+/* Small phones */
+@media (max-width: 480px) {
+  .sh-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .sh-header-logo {
+    font-size: 16px !important;
+  }
+  .sh-header-beta {
+    display: none !important;
+  }
+  .sh-banner-title {
+    font-size: 15px !important;
+  }
+  .sh-banner-subtitle {
+    font-size: 12px !important;
+  }
+  .sh-banner-chips {
+    flex-direction: column !important;
+    width: 100% !important;
+  }
+  .sh-search-input {
+    font-size: 14px !important;
+    padding: 10px 36px 10px 38px !important;
+  }
+  .sh-pills {
+    gap: 6px !important;
+  }
+  .sh-pills button {
+    padding: 6px 12px !important;
+    font-size: 11px !important;
+  }
 }
 
 /* Respect reduced motion preference */

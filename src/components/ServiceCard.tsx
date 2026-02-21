@@ -1,7 +1,7 @@
 "use client";
 
 import type { Theme } from "@/config/themes";
-import { STATUS_DISPLAY } from "@/lib/normalizer";
+import { STATUS_DISPLAY, MONITORING_DISPLAY } from "@/lib/normalizer";
 import StatusDot from "./StatusDot";
 import LogoIcon from "./LogoIcon";
 
@@ -11,6 +11,9 @@ interface ServiceCardProps {
   currentStatus: string;
   logoUrl?: string | null;
   latestIncident?: { title: string } | null;
+  monitoringCount?: number;
+  latestMonitoringIncident?: { title: string } | null;
+  compact?: boolean;
   onClick: () => void;
   isInStack: boolean;
   onToggleStack: () => void;
@@ -23,6 +26,9 @@ export default function ServiceCard({
   currentStatus,
   logoUrl,
   latestIncident,
+  monitoringCount = 0,
+  latestMonitoringIncident,
+  compact = false,
   onClick,
   isInStack,
   onToggleStack,
@@ -48,12 +54,15 @@ export default function ServiceCard({
         background: hasIssue
           ? `linear-gradient(135deg, ${sc.color}08, ${t.surface})`
           : t.surface,
-        borderRadius: 14,
-        padding: "16px 18px",
+        borderRadius: compact ? 10 : 14,
+        padding: compact ? "10px 12px" : "16px 18px",
         border: `1px solid ${hasIssue ? sc.color + "25" : t.border}`,
         cursor: "pointer",
         transition: "all 0.2s ease",
         outline: "none",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column" as const,
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = "translateY(-2px)";
@@ -71,9 +80,9 @@ export default function ServiceCard({
       }}
     >
       <div
-        style={{ display: "flex", alignItems: "center", gap: 12 }}
+        style={{ display: "flex", alignItems: "center", gap: compact ? 8 : 12, flex: 1 }}
       >
-        <LogoIcon name={name} logoUrl={logoUrl} size={36} t={t} />
+        <LogoIcon name={name} logoUrl={logoUrl} size={compact ? 28 : 36} t={t} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div
             style={{
@@ -85,7 +94,7 @@ export default function ServiceCard({
             <span
               style={{
                 fontWeight: 600,
-                fontSize: 14,
+                fontSize: compact ? 12 : 14,
                 color: t.text,
                 fontFamily: "var(--font-sans)",
                 whiteSpace: "nowrap",
@@ -95,19 +104,21 @@ export default function ServiceCard({
             >
               {name}
             </span>
-            <StatusDot status={currentStatus} size={7} />
+            <StatusDot status={currentStatus} size={compact ? 6 : 7} />
           </div>
-          <span
-            style={{
-              fontSize: 12,
-              color: sc.color,
-              fontWeight: 500,
-              fontFamily: "var(--font-sans)",
-              opacity: 0.9,
-            }}
-          >
-            {sc.label}
-          </span>
+          {!compact && (
+            <span
+              style={{
+                fontSize: 12,
+                color: sc.color,
+                fontWeight: 500,
+                fontFamily: "var(--font-sans)",
+                opacity: 0.9,
+              }}
+            >
+              {sc.label}
+            </span>
+          )}
         </div>
         <button
           onClick={(e) => {
@@ -118,9 +129,9 @@ export default function ServiceCard({
           style={{
             background: isInStack ? t.stackBtnBg : "transparent",
             border: `1px solid ${isInStack ? t.stackBtnBorder : t.border}`,
-            borderRadius: 8,
-            width: 30,
-            height: 30,
+            borderRadius: compact ? 6 : 8,
+            width: compact ? 24 : 30,
+            height: compact ? 24 : 30,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -155,10 +166,10 @@ export default function ServiceCard({
           )}
         </button>
       </div>
-      {hasIssue && latestIncident && (
+      {!compact && hasIssue && latestIncident && (
         <div
           style={{
-            marginTop: 10,
+            marginTop: "auto",
             paddingTop: 10,
             borderTop: `1px solid ${t.divider}`,
           }}
@@ -176,6 +187,47 @@ export default function ServiceCard({
             }}
           >
             {latestIncident.title}
+          </p>
+        </div>
+      )}
+      {!compact && !hasIssue && monitoringCount > 0 && latestMonitoringIncident && (
+        <div
+          style={{
+            marginTop: "auto",
+            paddingTop: 10,
+            borderTop: `1px solid ${t.divider}`,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke={MONITORING_DISPLAY.color}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ flexShrink: 0 }}
+          >
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+          <p
+            style={{
+              margin: 0,
+              fontSize: 11,
+              color: MONITORING_DISPLAY.color,
+              lineHeight: 1.4,
+              fontFamily: "var(--font-sans)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Monitoring: {latestMonitoringIncident.title}
           </p>
         </div>
       )}

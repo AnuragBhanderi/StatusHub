@@ -19,12 +19,16 @@ export default function CategoryPills({
 
   return (
     <div
+      className="sh-pills"
       style={{
         display: "flex",
         gap: 8,
         marginBottom: 28,
         overflowX: "auto",
-        paddingBottom: 4,
+        paddingBottom: 6,
+        WebkitOverflowScrolling: "touch",
+        msOverflowStyle: "none",
+        scrollbarWidth: "none",
       }}
     >
       {all.map((cat) => {
@@ -34,7 +38,7 @@ export default function CategoryPills({
             key={cat}
             onClick={() => onChange(cat)}
             style={{
-              padding: "7px 15px",
+              padding: "7px 16px",
               borderRadius: 20,
               border: `1px solid ${isActive ? t.pillActiveBorder : t.pillBorder}`,
               background: isActive ? t.pillActiveBg : t.pillBg,
@@ -45,6 +49,7 @@ export default function CategoryPills({
               whiteSpace: "nowrap",
               fontFamily: "var(--font-sans)",
               transition: "all 0.15s",
+              flexShrink: 0,
             }}
           >
             {cat}
