@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { THEMES, type ThemeKey } from "@/config/themes";
+import { THEMES, type ThemeKey, type Theme } from "@/config/themes";
 import { CATEGORIES } from "@/config/services";
 import { STATUS_DISPLAY, MONITORING_DISPLAY } from "@/lib/normalizer";
+import { useUser } from "@/lib/user-context";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import StatusBanner from "@/components/StatusBanner";
 import SearchBar from "@/components/SearchBar";
@@ -11,6 +12,10 @@ import CategoryPills from "@/components/CategoryPills";
 import ServiceCard from "@/components/ServiceCard";
 import MyStackToggle from "@/components/MyStackToggle";
 import ServiceDetailView from "@/components/ServiceDetailView";
+import UserMenu from "@/components/UserMenu";
+import NotificationBell from "@/components/NotificationBell";
+import AuthButton from "@/components/AuthButton";
+import { usePushNotifications } from "@/lib/hooks/use-push-notifications";
 
 interface ServiceData {
   id: string;
@@ -40,10 +45,20 @@ interface ServiceData {
 }
 
 export default function Home() {
-  const [theme, setTheme] = useState<ThemeKey>("dark");
+  const {
+    user,
+    isLoading: authLoading,
+    isSupabaseEnabled,
+    preferences: { theme, compact, myStack },
+    setTheme,
+    setCompact,
+    toggleStack,
+    notificationPrefs,
+    setPushEnabled,
+  } = useUser();
+
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
-  const [myStack, setMyStack] = useState<string[]>([]);
   const [showMyStack, setShowMyStack] = useState(false);
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState("");
@@ -52,8 +67,10 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [sortMode, setSortMode] = useState<"status" | "name" | "category">("status");
-  const [compact, setCompact] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+
+  // Browser push notifications for My Stack services
+  usePushNotifications(services, myStack, notificationPrefs.pushEnabled);
 
   // Keyboard shortcuts: Cmd/Ctrl+K to focus search, Esc to close detail
   useEffect(() => {
@@ -74,24 +91,9 @@ export default function Home() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedSlug]);
 
-  // Load persisted state from localStorage and read URL params on mount
+  // Mount guard + URL params
   useEffect(() => {
     setHasMounted(true);
-    const savedTheme = localStorage.getItem("statushub_theme") as ThemeKey;
-    if (savedTheme && THEMES[savedTheme]) {
-      setTheme(savedTheme);
-    }
-    const savedStack = localStorage.getItem("statushub_my_stack");
-    if (savedStack) {
-      try {
-        setMyStack(JSON.parse(savedStack));
-      } catch {
-        // ignore
-      }
-    }
-    const savedCompact = localStorage.getItem("statushub_compact");
-    if (savedCompact === "true") setCompact(true);
-    // Read ?service= query param (used by /service/[slug] redirect)
     const params = new URLSearchParams(window.location.search);
     const serviceParam = params.get("service");
     if (serviceParam) {
@@ -127,36 +129,7 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
-  // Persist theme
-  useEffect(() => {
-    if (hasMounted) {
-      localStorage.setItem("statushub_theme", theme);
-    }
-  }, [theme, hasMounted]);
-
-  // Persist stack
-  useEffect(() => {
-    if (hasMounted) {
-      localStorage.setItem("statushub_my_stack", JSON.stringify(myStack));
-    }
-  }, [myStack, hasMounted]);
-
-  // Persist compact
-  useEffect(() => {
-    if (hasMounted) {
-      localStorage.setItem("statushub_compact", compact ? "true" : "false");
-    }
-  }, [compact, hasMounted]);
-
   const t = THEMES[theme];
-
-  const toggleStack = useCallback(
-    (slug: string) =>
-      setMyStack((prev) =>
-        prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]
-      ),
-    []
-  );
 
   const filtered = useMemo(() => {
     let list = services;
@@ -215,6 +188,11 @@ export default function Home() {
         }}
       />
     );
+  }
+
+  // Show landing page for unauthenticated users when Supabase is configured
+  if (isSupabaseEnabled && !user && !authLoading) {
+    return <LandingPage t={t} />;
   }
 
   return (
@@ -309,6 +287,14 @@ export default function Home() {
             }}
           >
             <ThemeSwitcher theme={theme} setTheme={setTheme} t={t} />
+            {isSupabaseEnabled && user && (
+              <NotificationBell
+                pushEnabled={notificationPrefs.pushEnabled}
+                onToggle={() => setPushEnabled(!notificationPrefs.pushEnabled)}
+                t={t}
+              />
+            )}
+            {isSupabaseEnabled && user && <UserMenu t={t} />}
             {!loading && (
               <>
                 <div
@@ -920,6 +906,236 @@ export default function Home() {
           </>
         )}
       </main>
+    </div>
+  );
+}
+
+function LandingPage({ t }: { t: Theme }) {
+  const { signInWithGoogle, signInWithGitHub } = useUser();
+
+  return (
+    <div
+      className="theme-transition"
+      style={{
+        minHeight: "100vh",
+        background: t.bg,
+        fontFamily: "var(--font-sans)",
+        color: t.text,
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      {/* Header */}
+      <header
+        style={{
+          background: t.headerBg,
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          borderBottom: `1px solid ${t.border}`,
+          padding: "14px 0",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 1120,
+            margin: "0 auto",
+            padding: "0 24px",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
+          <div
+            className="animate-glow"
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 9,
+              background: `linear-gradient(135deg, ${t.accentPrimary} 0%, ${t.accentGreen} 100%)`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#fff",
+              fontSize: 15,
+              fontWeight: 700,
+              fontFamily: "var(--font-mono)",
+            }}
+          >
+            S
+          </div>
+          <span
+            style={{
+              fontWeight: 700,
+              fontSize: 19,
+              color: t.text,
+              letterSpacing: -0.5,
+            }}
+          >
+            StatusHub
+          </span>
+        </div>
+      </header>
+
+      {/* Hero */}
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "80px 24px",
+          textAlign: "center",
+          maxWidth: 640,
+          margin: "0 auto",
+          width: "100%",
+        }}
+      >
+        <div
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: 16,
+            background: `linear-gradient(135deg, ${t.accentPrimary}, ${t.accentGreen})`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#fff",
+            fontSize: 24,
+            fontWeight: 700,
+            fontFamily: "var(--font-mono)",
+            marginBottom: 28,
+          }}
+        >
+          S
+        </div>
+
+        <h1
+          style={{
+            fontSize: 40,
+            fontWeight: 700,
+            letterSpacing: -1,
+            lineHeight: 1.2,
+            marginBottom: 16,
+            margin: "0 0 16px 0",
+          }}
+        >
+          Monitor every service.
+          <br />
+          <span style={{ color: t.accentPrimary }}>One dashboard.</span>
+        </h1>
+
+        <p
+          style={{
+            fontSize: 17,
+            color: t.textMuted,
+            lineHeight: 1.6,
+            marginBottom: 40,
+            maxWidth: 480,
+          }}
+        >
+          Track the real-time status of 40+ services including AWS, GitHub,
+          Vercel, Stripe, and more. Build your personalized stack and never miss
+          an outage again.
+        </p>
+
+        {/* Feature highlights */}
+        <div
+          className="sh-landing-features"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: 16,
+            marginBottom: 48,
+            width: "100%",
+          }}
+        >
+          {[
+            {
+              label: "40+ Services",
+              desc: "Real-time monitoring",
+              icon: (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={t.accentPrimary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                </svg>
+              ),
+            },
+            {
+              label: "My Stack",
+              desc: "Personalized dashboard",
+              icon: (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={t.accentPrimary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+              ),
+            },
+            {
+              label: "Cloud Sync",
+              desc: "Preferences everywhere",
+              icon: (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={t.accentPrimary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z" />
+                </svg>
+              ),
+            },
+          ].map((f) => (
+            <div
+              key={f.label}
+              style={{
+                padding: "20px 16px",
+                borderRadius: 14,
+                background: t.surface,
+                border: `1px solid ${t.border}`,
+                textAlign: "center",
+              }}
+            >
+              <div style={{ marginBottom: 10 }}>{f.icon}</div>
+              <div
+                style={{
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: t.text,
+                }}
+              >
+                {f.label}
+              </div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: t.textMuted,
+                  marginTop: 4,
+                }}
+              >
+                {f.desc}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Sign-in buttons */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+            width: "100%",
+            maxWidth: 320,
+          }}
+        >
+          <AuthButton t={t} />
+        </div>
+
+        <p
+          style={{
+            fontSize: 11,
+            color: t.footerColor,
+            marginTop: 24,
+            fontFamily: "var(--font-mono)",
+          }}
+        >
+          Free and open source. Your data stays yours.
+        </p>
+      </div>
     </div>
   );
 }
