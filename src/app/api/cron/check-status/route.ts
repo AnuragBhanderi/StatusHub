@@ -75,8 +75,8 @@ export async function GET(request: NextRequest) {
           const userStack = stackMap.get(pref.user_id);
           if (!userStack || !userStack.has(change.slug)) continue;
 
-          // Check severity threshold
-          if (!meetsThreshold(change.newStatus, pref.severity_threshold || "all")) continue;
+          // Check severity threshold (pass oldStatus so recoveries are notified)
+          if (!meetsThreshold(change.newStatus, pref.severity_threshold || "all", change.oldStatus)) continue;
 
           // Check email address exists
           if (!pref.email_address) continue;
