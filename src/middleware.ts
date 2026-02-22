@@ -5,7 +5,10 @@ export async function middleware(request: NextRequest) {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
     return;
   }
-  return await updateSession(request);
+
+  const { response } = await updateSession(request);
+
+  return response;
 }
 
 export const config = {

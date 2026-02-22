@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, createContext, useContext, type ReactNode } from "react";
+import { useState, useCallback, createContext, useContext, type ReactNode } from "react";
 import type { Theme } from "@/config/themes";
 
 interface ToastItem {
@@ -47,35 +47,35 @@ export function ToastProvider({ children, t }: { children: ReactNode; t: Theme }
             display: "flex",
             flexDirection: "column",
             gap: 8,
-            maxWidth: 380,
+            maxWidth: 360,
           }}
         >
           {toasts.map((toast) => {
             const colors = {
-              error: { bg: "rgba(239,68,68,0.12)", border: "rgba(239,68,68,0.3)", text: "#ef4444" },
-              success: { bg: "rgba(22,163,74,0.12)", border: "rgba(22,163,74,0.3)", text: "#16a34a" },
-              info: { bg: `${t.accentPrimary}18`, border: `${t.accentPrimary}30`, text: t.accentPrimary },
+              error: { bg: "rgba(239,68,68,0.10)", border: "rgba(239,68,68,0.25)", text: "#ef4444" },
+              success: { bg: "rgba(22,163,74,0.10)", border: "rgba(22,163,74,0.25)", text: "#16a34a" },
+              info: { bg: `${t.accentPrimary}15`, border: `${t.accentPrimary}25`, text: t.accentPrimary },
             }[toast.type];
 
             return (
               <div
                 key={toast.id}
+                className="animate-fade-in"
                 style={{
                   background: t.surface,
                   border: `1px solid ${colors.border}`,
                   borderLeft: `3px solid ${colors.text}`,
-                  borderRadius: 10,
-                  padding: "12px 16px",
-                  boxShadow: t.cardShadow,
+                  borderRadius: 8,
+                  padding: "10px 14px",
+                  boxShadow: t.shadowMd,
                   display: "flex",
                   alignItems: "center",
                   gap: 10,
-                  animation: "fade-in 0.2s ease",
                 }}
               >
                 <svg
-                  width="16"
-                  height="16"
+                  width="15"
+                  height="15"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke={colors.text}
@@ -114,9 +114,10 @@ export function ToastProvider({ children, t }: { children: ReactNode; t: Theme }
                     padding: 2,
                     display: "flex",
                     flexShrink: 0,
+                    borderRadius: 4,
                   }}
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={t.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={t.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                   </svg>
                 </button>

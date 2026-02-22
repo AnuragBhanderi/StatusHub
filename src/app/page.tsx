@@ -1,239 +1,139 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { THEMES, type ThemeKey, type Theme } from "@/config/themes";
-import { CATEGORIES } from "@/config/services";
-import { STATUS_DISPLAY, MONITORING_DISPLAY } from "@/lib/normalizer";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { THEMES } from "@/config/themes";
+import { services as serviceConfigs } from "@/config/services";
 import { useUser } from "@/lib/user-context";
-import ThemeSwitcher from "@/components/ThemeSwitcher";
-import StatusBanner from "@/components/StatusBanner";
-import SearchBar from "@/components/SearchBar";
-import CategoryPills from "@/components/CategoryPills";
-import ServiceCard from "@/components/ServiceCard";
-import MyStackToggle from "@/components/MyStackToggle";
-import ServiceDetailView from "@/components/ServiceDetailView";
-import UserMenu from "@/components/UserMenu";
-import NotificationBell from "@/components/NotificationBell";
-import AuthButton from "@/components/AuthButton";
-import { ToastProvider, useToast } from "@/components/Toast";
-import { usePushNotifications } from "@/lib/hooks/use-push-notifications";
-import { onToast } from "@/lib/user-context";
+import AppHeader from "@/components/AppHeader";
+import AppFooter from "@/components/AppFooter";
+import LogoIcon from "@/components/LogoIcon";
+import Link from "next/link";
 
-interface ServiceData {
-  id: string;
+interface PreviewService {
   name: string;
   slug: string;
-  category: string;
   currentStatus: string;
-  statusPageUrl: string;
   logoUrl: string | null;
-  lastPolledAt: string | null;
-  incidentCount: number;
-  latestIncident: {
-    id: string;
-    title: string;
-    status: string;
-    impact: string;
-    startedAt: string;
-  } | null;
-  monitoringCount: number;
-  latestMonitoringIncident: {
-    id: string;
-    title: string;
-    status: string;
-    impact: string;
-    startedAt: string;
-  } | null;
+  category: string;
 }
 
-export default function Home() {
-  const { preferences: { theme } } = useUser();
-  const t = THEMES[theme];
+/* ─── Reusable section heading ─── */
+function SectionLabel({ text, t }: { text: string; t: (typeof THEMES)["dark"] }) {
   return (
-    <ToastProvider t={t}>
-      <HomeInner />
-    </ToastProvider>
-  );
-}
-
-function HomeInner() {
-  const {
-    user,
-    isLoading: authLoading,
-    isSupabaseEnabled,
-    preferences: { theme, compact, myStack },
-    setTheme,
-    setCompact,
-    toggleStack,
-    setMyStack,
-    notificationPrefs,
-    setPushEnabled,
-  } = useUser();
-
-  const [search, setSearch] = useState("");
-  const [activeCategory, setActiveCategory] = useState("All");
-  const [showMyStack, setShowMyStack] = useState(false);
-  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState("");
-  const [services, setServices] = useState<ServiceData[]>([]);
-  const [hasMounted, setHasMounted] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-  const [sortMode, setSortMode] = useState<"status" | "name" | "category">("status");
-  const searchRef = useRef<HTMLInputElement>(null);
-  const lastFetchTimeRef = useRef(Date.now());
-  const [countdown, setCountdown] = useState(180);
-
-  // Browser push notifications for My Stack services
-  usePushNotifications(services, myStack, notificationPrefs.pushEnabled);
-
-  // Bridge user-context toast events to the Toast UI
-  const { showToast } = useToast();
-  useEffect(() => {
-    return onToast((message, type) => showToast(message, type));
-  }, [showToast]);
-
-  // Keyboard shortcuts: Cmd/Ctrl+K to focus search, Esc to close detail
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        searchRef.current?.focus();
-      }
-      if (e.key === "Escape") {
-        if (selectedSlug) {
-          setSelectedSlug(null);
-        } else if (document.activeElement === searchRef.current) {
-          searchRef.current?.blur();
-        }
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedSlug]);
-
-  // Mount guard + URL params
-  useEffect(() => {
-    setHasMounted(true);
-    const params = new URLSearchParams(window.location.search);
-    const serviceParam = params.get("service");
-    if (serviceParam) {
-      setSelectedSlug(serviceParam);
-    }
-    const stackParam = params.get("stack");
-    if (stackParam && !user) {
-      const slugs = stackParam.split(",").filter(Boolean);
-      if (slugs.length > 0) {
-        setMyStack(slugs);
-        setShowMyStack(true);
-      }
-    }
-  }, []);
-
-  // Fetch live data from API
-  const fetchServices = useCallback(async () => {
-    try {
-      setError(false);
-      const res = await fetch("/api/services");
-      if (res.ok) {
-        const data = await res.json();
-        if (data.services && data.services.length > 0) {
-          setServices(data.services);
-          setLastUpdated(new Date().toLocaleTimeString());
-        } else {
-          setError(true);
-        }
-      } else {
-        setError(true);
-      }
-    } catch {
-      setError(true);
-    }
-    setLoading(false);
-    lastFetchTimeRef.current = Date.now();
-    setCountdown(180);
-  }, []);
-
-  useEffect(() => {
-    fetchServices();
-    const interval = setInterval(fetchServices, 180000); // 3 min
-    return () => clearInterval(interval);
-  }, []);
-
-  // Countdown timer for next refresh
-  useEffect(() => {
-    const id = setInterval(() => {
-      const remaining = 180 - Math.floor((Date.now() - lastFetchTimeRef.current) / 1000);
-      setCountdown(Math.max(0, remaining));
-    }, 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  const t = THEMES[theme];
-
-  const filtered = useMemo(() => {
-    let list = services;
-    if (showMyStack) list = list.filter((s) => myStack.includes(s.slug));
-    if (activeCategory !== "All")
-      list = list.filter((s) => s.category === activeCategory);
-    if (search) {
-      const q = search.toLowerCase();
-      list = list.filter(
-        (s) =>
-          s.name.toLowerCase().includes(q) ||
-          s.category.toLowerCase().includes(q)
-      );
-    }
-    const sorter = (a: ServiceData, b: ServiceData) => {
-      if (sortMode === "name") return a.name.localeCompare(b.name);
-      if (sortMode === "category") {
-        const cat = a.category.localeCompare(b.category);
-        if (cat !== 0) return cat;
-        return a.name.localeCompare(b.name);
-      }
-      const orderA = STATUS_DISPLAY[a.currentStatus]?.order ?? 5;
-      const orderB = STATUS_DISPLAY[b.currentStatus]?.order ?? 5;
-      return orderA - orderB;
-    };
-    return {
-      issues: list.filter((s) => s.currentStatus !== "OPERATIONAL").sort(sorter),
-      monitoring: list.filter((s) => s.currentStatus === "OPERATIONAL" && s.monitoringCount > 0).sort(sorter),
-      operational: list.filter((s) => s.currentStatus === "OPERATIONAL" && s.monitoringCount === 0).sort(sorter),
-      total: list.length,
-    };
-  }, [search, activeCategory, showMyStack, myStack, services, sortMode]);
-
-  const operational = services.filter(
-    (s) => s.currentStatus === "OPERATIONAL"
-  ).length;
-  const issues = services.length - operational;
-  const servicesWithIssues = services.filter(
-    (s) => s.currentStatus !== "OPERATIONAL"
-  );
-  const monitoringOnlyCount = services.filter(
-    (s) => s.currentStatus === "OPERATIONAL" && s.monitoringCount > 0
-  ).length;
-
-  const selectedService = selectedSlug
-    ? services.find((s) => s.slug === selectedSlug) || null
-    : null;
-
-  // Prevent flash of wrong theme — use transparent to avoid showing wrong color
-  if (!hasMounted) {
-    return (
-      <div
+    <div
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
+        fontSize: 11,
+        fontWeight: 700,
+        color: t.accentPrimary,
+        fontFamily: "var(--font-mono)",
+        letterSpacing: 1.5,
+        textTransform: "uppercase",
+        marginBottom: 16,
+      }}
+    >
+      <span
         style={{
-          minHeight: "100vh",
-          background: "transparent",
+          width: 16,
+          height: 1,
+          background: t.accentPrimary,
+          opacity: 0.4,
         }}
       />
-    );
+      {text}
+    </div>
+  );
+}
+
+/* ─── Feature detail row for showcase sections ─── */
+function FeaturePoint({
+  text,
+  t,
+}: {
+  text: string;
+  t: (typeof THEMES)["dark"];
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 10,
+        fontSize: 14,
+        color: t.textSecondary,
+        lineHeight: 1.6,
+      }}
+    >
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke={t.accentGreen}
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        style={{ flexShrink: 0, marginTop: 3 }}
+      >
+        <polyline points="20 6 9 17 4 12" />
+      </svg>
+      <span>{text}</span>
+    </div>
+  );
+}
+
+export default function LandingPage() {
+  const {
+    user,
+    isSupabaseEnabled,
+    preferences: { theme },
+    signInWithGitHub,
+  } = useUser();
+  const t = THEMES[theme];
+
+  // Build a slug->logoUrl map from the services config for demo sections
+  const logoMap = useMemo(() => {
+    const map: Record<string, string | undefined> = {};
+    serviceConfigs.forEach((s) => { map[s.name.toLowerCase()] = s.logoUrl; });
+    return map;
+  }, []);
+
+  const [services, setServices] = useState<PreviewService[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [hasMounted, setHasMounted] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
+  const [servicesLoading, setServicesLoading] = useState(true);
+
+  useEffect(() => {
+    setHasMounted(true);
+    fetch("/api/services")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.services) {
+          setTotalCount(data.services.length);
+          // Shuffle and pick 8 random services each load
+          const shuffled = [...data.services].sort(() => Math.random() - 0.5);
+          setServices(shuffled.slice(0, 8));
+        }
+      })
+      .catch(() => {
+        setFetchError(true);
+      })
+      .finally(() => {
+        setServicesLoading(false);
+      });
+  }, []);
+
+  if (!hasMounted) {
+    return <div style={{ minHeight: "100vh", background: "transparent" }} />;
   }
 
-  // Show landing page for unauthenticated users when Supabase is configured
-  if (isSupabaseEnabled && !user && !authLoading) {
-    return <LandingPage t={t} />;
-  }
+  const operationalCount = services.filter(
+    (s) => s.currentStatus === "OPERATIONAL"
+  ).length;
+  const issueCount = totalCount - operationalCount;
 
   return (
     <div
@@ -245,396 +145,311 @@ function HomeInner() {
         color: t.text,
       }}
     >
-      {/* Header */}
-      <header
+      {/* ─── Sticky Nav ─── */}
+      <AppHeader
+        t={t}
+        rightContent={
+          <nav className="sh-landing-nav" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <Link
+              href="/dashboard"
+              style={{
+                fontSize: 13,
+                fontWeight: 500,
+                color: t.textSecondary,
+                textDecoration: "none",
+                padding: "6px 14px",
+                borderRadius: 8,
+                transition: "color 0.15s",
+              }}
+            >
+              Dashboard
+            </Link>
+            <a
+              href="#features"
+              className="sh-hide-mobile"
+              style={{
+                fontSize: 13,
+                fontWeight: 500,
+                color: t.textSecondary,
+                textDecoration: "none",
+                padding: "6px 14px",
+                borderRadius: 8,
+                transition: "color 0.15s",
+              }}
+            >
+              Features
+            </a>
+            <a
+              href="#pricing"
+              className="sh-hide-mobile"
+              style={{
+                fontSize: 13,
+                fontWeight: 500,
+                color: t.textSecondary,
+                textDecoration: "none",
+                padding: "6px 14px",
+                borderRadius: 8,
+                transition: "color 0.15s",
+              }}
+            >
+              Pricing
+            </a>
+            {isSupabaseEnabled && !user && (
+              <button
+                onClick={signInWithGitHub}
+                style={{
+                  background: t.accentPrimary,
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "7px 16px",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "var(--font-sans)",
+                  transition: "opacity 0.15s",
+                  marginLeft: 4,
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.9")}
+                onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+              >
+                Sign In
+              </button>
+            )}
+            {isSupabaseEnabled && user && (
+              <Link
+                href="/dashboard"
+                style={{
+                  background: t.accentPrimary,
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "7px 16px",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  textDecoration: "none",
+                  fontFamily: "var(--font-sans)",
+                  marginLeft: 4,
+                }}
+              >
+                Dashboard
+              </Link>
+            )}
+          </nav>
+        }
+      />
+
+      {/* ─── Hero ─── */}
+      <section
+        className="sh-landing-hero"
         style={{
-          background: t.headerBg,
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
-          borderBottom: `1px solid ${t.border}`,
-          padding: "14px 0",
-          position: "sticky",
-          top: 0,
-          zIndex: 100,
-          transition: "background 0.3s ease",
+          maxWidth: 800,
+          margin: "0 auto",
+          padding: "100px 24px 80px",
+          textAlign: "center",
         }}
       >
         <div
-          className="sh-header-inner"
+          className={servicesLoading ? "" : "animate-fade-in"}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            background: servicesLoading ? `${t.textMuted}08` : `${t.accentGreen}12`,
+            border: `1px solid ${servicesLoading ? t.border : `${t.accentGreen}25`}`,
+            borderRadius: 20,
+            padding: "5px 14px",
+            marginBottom: 28,
+            fontSize: 12,
+            fontWeight: 600,
+            color: servicesLoading ? t.textMuted : t.accentGreen,
+            fontFamily: "var(--font-mono)",
+            minHeight: 28,
+          }}
+        >
+          {servicesLoading ? (
+            <span style={{ opacity: 0.5 }}>Checking services...</span>
+          ) : totalCount > 0 ? (
+            <>
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  background: t.accentGreen,
+                  boxShadow: `0 0 8px ${t.accentGreen}80`,
+                }}
+              />
+              {operationalCount}/{totalCount} services operational right now
+            </>
+          ) : (
+            <span style={{ opacity: 0.5 }}>Status unavailable</span>
+          )}
+        </div>
+
+        <h1
+          className="sh-hero-title"
+          style={{
+            fontSize: 56,
+            fontWeight: 700,
+            letterSpacing: -2,
+            lineHeight: 1.1,
+            margin: "0 0 20px 0",
+          }}
+        >
+          One dashboard for
+          <br />
+          <span style={{ color: t.accentPrimary }}>every service.</span>
+        </h1>
+
+        <p
+          style={{
+            fontSize: 18,
+            color: t.textMuted,
+            lineHeight: 1.6,
+            maxWidth: 560,
+            margin: "0 auto 16px",
+          }}
+        >
+          Monitor {totalCount || "40+"} services in real-time. Get email and push
+          alerts when something breaks. Build your personalized stack and share
+          it with your team.
+        </p>
+        <p
+          style={{
+            fontSize: 14,
+            color: t.textFaint,
+            lineHeight: 1.6,
+            maxWidth: 480,
+            margin: "0 auto 40px",
+            fontFamily: "var(--font-mono)",
+          }}
+        >
+          Free and open source. No signup required.
+        </p>
+
+        <div
+          className="sh-landing-cta-buttons"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 12,
+          }}
+        >
+          <Link
+            href="/dashboard"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              background: t.accentPrimary,
+              color: "#fff",
+              border: "none",
+              borderRadius: 10,
+              padding: "12px 28px",
+              fontSize: 15,
+              fontWeight: 600,
+              textDecoration: "none",
+              fontFamily: "var(--font-sans)",
+              transition: "opacity 0.15s, transform 0.15s",
+            }}
+          >
+            Open Dashboard
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="5" y1="12" x2="19" y2="12" />
+              <polyline points="12 5 19 12 12 19" />
+            </svg>
+          </Link>
+          {isSupabaseEnabled && !user && (
+            <button
+              onClick={signInWithGitHub}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                background: "transparent",
+                color: t.textSecondary,
+                border: `1px solid ${t.border}`,
+                borderRadius: 10,
+                padding: "12px 24px",
+                fontSize: 15,
+                fontWeight: 500,
+                cursor: "pointer",
+                fontFamily: "var(--font-sans)",
+                transition: "all 0.15s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = t.borderHover;
+                e.currentTarget.style.background = t.surfaceHover;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = t.border;
+                e.currentTarget.style.background = "transparent";
+              }}
+            >
+              Sign In for Alerts
+            </button>
+          )}
+        </div>
+      </section>
+
+      {/* ─── Live Preview ─── */}
+      {!fetchError && (
+        <section
+          className="sh-landing-preview"
           style={{
             maxWidth: 1120,
             margin: "0 auto",
-            padding: "0 24px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
+            padding: "0 24px 100px",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div
-              className="animate-glow"
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 9,
-                background: `linear-gradient(135deg, ${t.accentPrimary} 0%, ${t.accentGreen} 100%)`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#fff",
-                fontSize: 15,
-                fontWeight: 700,
-                fontFamily: "var(--font-mono)",
-                flexShrink: 0,
-              }}
-            >
-              S
-            </div>
-            <span
-              className="sh-header-logo"
-              style={{
-                fontWeight: 700,
-                fontSize: 19,
-                color: t.text,
-                letterSpacing: -0.5,
-              }}
-            >
-              StatusHub
-            </span>
-            <span
-              className="sh-header-beta"
-              style={{
-                fontSize: 9,
-                fontWeight: 700,
-                color: t.betaText,
-                background: t.betaBg,
-                padding: "3px 8px",
-                borderRadius: 5,
-                fontFamily: "var(--font-mono)",
-                letterSpacing: 1.5,
-                flexShrink: 0,
-              }}
-            >
-              BETA
-            </span>
-          </div>
           <div
-            className="sh-header-right"
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 12,
+              justifyContent: "space-between",
+              marginBottom: 16,
             }}
           >
-            <ThemeSwitcher theme={theme} setTheme={setTheme} t={t} />
-            {isSupabaseEnabled && user && (
-              <NotificationBell
-                pushEnabled={notificationPrefs.pushEnabled}
-                onToggle={() => setPushEnabled(!notificationPrefs.pushEnabled)}
-                t={t}
-              />
-            )}
-            {isSupabaseEnabled && user && <UserMenu t={t} />}
-            {!loading && (
-              <>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: "50%",
-                      background: t.accentGreen,
-                      boxShadow: `0 0 8px ${t.accentGreen}80`,
-                      flexShrink: 0,
-                    }}
-                  />
-                  <span
-                    className="sh-live-text"
-                    style={{
-                      fontSize: 11,
-                      color: t.textMuted,
-                      fontFamily: "var(--font-mono)",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Live{lastUpdated ? ` · ${lastUpdated}` : ""}{!loading && ` · ${Math.floor(countdown / 60)}:${String(countdown % 60).padStart(2, "0")}`}
-                  </span>
-                </div>
-                <MyStackToggle
-                  showMyStack={showMyStack}
-                  onToggle={() => setShowMyStack(!showMyStack)}
-                  count={myStack.length}
-                  t={t}
-                />
-                {showMyStack && myStack.length > 0 && (
-                  <button
-                    onClick={() => {
-                      const url = `${window.location.origin}?stack=${myStack.join(",")}`;
-                      navigator.clipboard.writeText(url).then(() => {
-                        showToast("Stack link copied!", "success");
-                      });
-                    }}
-                    title="Share your stack as a URL"
-                    aria-label="Share stack"
-                    style={{
-                      background: "transparent",
-                      border: `1px solid ${t.border}`,
-                      borderRadius: 9,
-                      width: 34,
-                      height: 34,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      cursor: "pointer",
-                      color: t.textMuted,
-                      transition: "all 0.15s",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8" />
-                      <polyline points="16 6 12 2 8 6" />
-                      <line x1="12" y1="2" x2="12" y2="15" />
-                    </svg>
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      </header>
-
-      <main
-        className="sh-main"
-        style={{
-          maxWidth: 1120,
-          margin: "0 auto",
-          padding: "28px 24px 80px",
-        }}
-      >
-        {/* Loading State */}
-        {loading ? (
-          <div
-            className="animate-fade-in"
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "120px 24px",
-            }}
-          >
-            {/* Spinner */}
             <div
               style={{
-                position: "relative",
-                width: 48,
-                height: 48,
-                marginBottom: 28,
-              }}
-            >
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  borderRadius: "50%",
-                  border: `2.5px solid ${t.border}`,
-                }}
-              />
-              <div
-                className="animate-spin-slow"
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  borderRadius: "50%",
-                  border: "2.5px solid transparent",
-                  borderTopColor: t.accentPrimary,
-                  borderRightColor: t.accentPrimary,
-                  animation: "spin-slow 1s linear infinite",
-                }}
-              />
-            </div>
-
-            <div
-              style={{
-                fontSize: 17,
-                fontWeight: 600,
-                color: t.text,
-                fontFamily: "var(--font-sans)",
-                marginBottom: 8,
-              }}
-            >
-              Fetching live status data
-            </div>
-            <div
-              style={{
-                fontSize: 13,
+                fontSize: 11,
+                fontWeight: 700,
                 color: t.textMuted,
+                fontFamily: "var(--font-mono)",
+                letterSpacing: 1,
+                textTransform: "uppercase",
+              }}
+            >
+              Live Status
+            </div>
+            <Link
+              href="/dashboard"
+              style={{
+                fontSize: 12,
+                fontWeight: 500,
+                color: t.accentPrimary,
+                textDecoration: "none",
                 fontFamily: "var(--font-sans)",
-                textAlign: "center",
-                maxWidth: 360,
-                lineHeight: 1.5,
-              }}
-            >
-              Checking {CATEGORIES.length} categories across 40+ services via
-              official APIs...
-            </div>
-
-            {/* Skeleton cards */}
-            <div
-              style={{
-                width: "100%",
-                maxWidth: 900,
-                marginTop: 48,
-                display: "grid",
-                gridTemplateColumns:
-                  "repeat(auto-fill, minmax(260px, 1fr))",
-                gap: 10,
-              }}
-            >
-              {Array.from({ length: 9 }).map((_, i) => (
-                <div
-                  key={i}
-                  style={{
-                    background: t.surface,
-                    borderRadius: 14,
-                    padding: "16px 18px",
-                    border: `1px solid ${t.border}`,
-                    opacity: 0.5 - i * 0.04,
-                    animation: `fade-in 0.4s ease ${i * 0.06}s both`,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 12,
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: 9,
-                        background: t.logoBg,
-                        border: `1px solid ${t.logoBorder}`,
-                      }}
-                    />
-                    <div style={{ flex: 1 }}>
-                      <div
-                        style={{
-                          height: 12,
-                          width: 80 + ((i * 17) % 40),
-                          borderRadius: 6,
-                          background: t.logoBg,
-                          marginBottom: 8,
-                        }}
-                      />
-                      <div
-                        style={{
-                          height: 10,
-                          width: 60,
-                          borderRadius: 5,
-                          background: t.logoBg,
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : error && services.length === 0 ? (
-          <div
-            className="animate-fade-in"
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "120px 24px",
-            }}
-          >
-            <div
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: 14,
-                background: "rgba(239,68,68,0.10)",
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "center",
-                marginBottom: 20,
+                gap: 4,
               }}
             >
+              {totalCount > 0 ? `View all ${totalCount} services` : "View all services"}
               <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#ef4444"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" y1="8" x2="12" y2="12" />
-                <line x1="12" y1="16" x2="12.01" y2="16" />
-              </svg>
-            </div>
-            <div
-              style={{
-                fontSize: 17,
-                fontWeight: 600,
-                color: t.text,
-                marginBottom: 8,
-              }}
-            >
-              Unable to fetch status data
-            </div>
-            <div
-              style={{
-                fontSize: 13,
-                color: t.textMuted,
-                textAlign: "center",
-                maxWidth: 360,
-                lineHeight: 1.5,
-                marginBottom: 24,
-              }}
-            >
-              Could not connect to the status APIs. This may be a network issue
-              or the services may be temporarily unavailable.
-            </div>
-            <button
-              onClick={() => {
-                setLoading(true);
-                setError(false);
-                fetchServices();
-              }}
-              style={{
-                background: t.accentPrimary,
-                color: "#fff",
-                border: "none",
-                borderRadius: 10,
-                padding: "10px 24px",
-                fontSize: 13,
-                fontWeight: 600,
-                fontFamily: "var(--font-sans)",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 7,
-              }}
-            >
-              <svg
-                width="14"
-                height="14"
+                width="12"
+                height="12"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -642,572 +457,1422 @@ function HomeInner() {
                 strokeLinecap="round"
                 strokeLinejoin="round"
               >
-                <polyline points="23 4 23 10 17 10" />
-                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                <polyline points="9 18 15 12 9 6" />
               </svg>
-              Retry
-            </button>
+            </Link>
           </div>
-        ) : selectedService ? (
-          <ServiceDetailView
-            service={selectedService}
-            onBack={() => setSelectedSlug(null)}
-            isInStack={myStack.includes(selectedService.slug)}
-            onToggleStack={() => toggleStack(selectedService.slug)}
-            t={t}
-          />
-        ) : (
-          <>
-            <StatusBanner
-              total={services.length}
-              operational={operational}
-              issues={issues}
-              servicesWithIssues={servicesWithIssues}
-              onSelectService={setSelectedSlug}
-              monitoringOnlyCount={monitoringOnlyCount}
-              t={t}
-            />
-
-            <SearchBar ref={searchRef} value={search} onChange={setSearch} t={t} />
-
-            {/* Sort + Compact toolbar */}
-            <div
-              className="sh-toolbar"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: 12,
-                gap: 8,
-              }}
-            >
-              {/* Sort toggle */}
-              <div
-                className="sh-toolbar-sort"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 2,
-                  background: t.tagBg,
-                  borderRadius: 10,
-                  border: `1px solid ${t.border}`,
-                  padding: 3,
-                }}
-              >
-                {(["status", "name", "category"] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    onClick={() => setSortMode(mode)}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
+              gap: 8,
+            }}
+          >
+            {servicesLoading
+              ? Array.from({ length: 8 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="sh-skeleton-pulse"
                     style={{
-                      background: sortMode === mode ? t.pillActiveBg : "transparent",
-                      border: sortMode === mode ? `1px solid ${t.pillActiveBorder}` : "1px solid transparent",
-                      borderRadius: 7,
-                      padding: "5px 14px",
-                      fontSize: 11,
-                      fontWeight: 600,
-                      fontFamily: "var(--font-mono)",
-                      color: sortMode === mode ? t.pillActiveText : t.textMuted,
-                      cursor: "pointer",
-                      transition: "all 0.15s",
-                      textTransform: "capitalize",
+                      background: t.surface,
+                      border: `1px solid ${t.border}`,
+                      borderRadius: 10,
+                      padding: "14px 16px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      animationDelay: `${i * 0.06}s`,
                     }}
                   >
-                    {mode}
-                  </button>
-                ))}
-              </div>
-
-              {/* Compact toggle */}
-              <button
-                onClick={() => setCompact(!compact)}
-                title={compact ? "Switch to comfortable view" : "Switch to compact view"}
-                style={{
-                  background: compact ? t.pillActiveBg : t.tagBg,
-                  border: `1px solid ${compact ? t.pillActiveBorder : t.border}`,
-                  borderRadius: 10,
-                  padding: "6px 14px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  cursor: "pointer",
-                  transition: "all 0.15s",
-                  color: compact ? t.pillActiveText : t.textMuted,
-                  fontSize: 11,
-                  fontWeight: 600,
-                  fontFamily: "var(--font-mono)",
-                  flexShrink: 0,
-                }}
-              >
-                {compact ? (
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
-                    <line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
-                  </svg>
-                ) : (
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
-                    <rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
-                  </svg>
-                )}
-                {compact ? "Compact" : "Comfy"}
-              </button>
-            </div>
-
-            <CategoryPills
-              categories={CATEGORIES}
-              active={activeCategory}
-              onChange={setActiveCategory}
-              t={t}
-            />
-
-            {filtered.total === 0 ? (
-              <div style={{ textAlign: "center", padding: "80px 0" }}>
-                <div
-                  style={{
-                    fontSize: 36,
-                    marginBottom: 12,
-                    opacity: t.emptyIcon,
-                  }}
-                >
-                  <svg
-                    width="36"
-                    height="36"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke={t.emptyText}
-                    strokeWidth="1.5"
-                    style={{ display: "inline" }}
-                  >
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
-                  </svg>
-                </div>
-                <div
-                  style={{
-                    fontSize: 15,
-                    fontWeight: 500,
-                    color: t.emptyText,
-                  }}
-                >
-                  {showMyStack
-                    ? "No services in your stack yet."
-                    : "No services found."}
-                </div>
-                <div
-                  style={{
-                    fontSize: 13,
-                    color: t.emptySubtext,
-                    marginTop: 6,
-                  }}
-                >
-                  {showMyStack
-                    ? "Click the star on any service to add it."
-                    : "Try a different search term."}
-                </div>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: compact ? 16 : 24 }}>
-                {/* Issues section */}
-                {filtered.issues.length > 0 && (
-                  <section>
-                    <div style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      marginBottom: compact ? 8 : 12,
-                    }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2" />
-                        <line x1="12" y1="8" x2="12" y2="12" />
-                        <line x1="12" y1="16" x2="12.01" y2="16" />
-                      </svg>
-                      <span style={{
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: t.textSecondary,
-                        fontFamily: "var(--font-mono)",
-                        letterSpacing: 0.5,
-                        textTransform: "uppercase",
-                      }}>
-                        Issues ({filtered.issues.length})
-                      </span>
+                    <div
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 8,
+                        background: t.logoBg,
+                        border: `1px solid ${t.logoBorder}`,
+                        flexShrink: 0,
+                      }}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          width: "60%",
+                          height: 13,
+                          borderRadius: 4,
+                          background: t.logoBg,
+                          marginBottom: 6,
+                        }}
+                      />
+                      <div
+                        style={{
+                          width: "40%",
+                          height: 10,
+                          borderRadius: 4,
+                          background: t.logoBg,
+                        }}
+                      />
                     </div>
                     <div
-                      className="sh-grid"
                       style={{
-                        display: "grid",
-                        gridTemplateColumns: compact
-                          ? "repeat(auto-fill, minmax(200px, 1fr))"
-                          : "repeat(auto-fill, minmax(280px, 1fr))",
-                        gap: compact ? 6 : 10,
+                        width: 7,
+                        height: 7,
+                        borderRadius: "50%",
+                        background: t.logoBg,
+                        flexShrink: 0,
+                      }}
+                    />
+                  </div>
+                ))
+              : services.map((s, i) => {
+                  const isOp = s.currentStatus === "OPERATIONAL";
+                  return (
+                    <Link
+                      key={s.slug}
+                      href={`/dashboard?service=${s.slug}`}
+                      className="animate-fade-in"
+                      style={{
+                        animationDelay: `${i * 0.05}s`,
+                        background: t.surface,
+                        border: `1px solid ${isOp ? t.border : "rgba(239,68,68,0.25)"}`,
+                        borderRadius: 10,
+                        padding: "14px 16px",
+                        textDecoration: "none",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        transition: "all 0.15s",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = t.borderHover;
+                        e.currentTarget.style.transform = "translateY(-1px)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = isOp
+                          ? t.border
+                          : "rgba(239,68,68,0.25)";
+                        e.currentTarget.style.transform = "translateY(0)";
                       }}
                     >
-                      {filtered.issues.map((s, i) => (
-                        <div key={s.slug} className="animate-slide-up" style={{ animationDelay: `${i * 0.025}s` }}>
-                          <ServiceCard
-                            name={s.name} slug={s.slug} currentStatus={s.currentStatus}
-                            logoUrl={s.logoUrl} latestIncident={s.latestIncident}
-                            monitoringCount={s.monitoringCount}
-                            latestMonitoringIncident={s.latestMonitoringIncident}
-                            compact={compact} onClick={() => setSelectedSlug(s.slug)}
-                            isInStack={myStack.includes(s.slug)}
-                            onToggleStack={() => toggleStack(s.slug)} t={t}
-                          />
+                      <LogoIcon name={s.name} logoUrl={s.logoUrl} size={32} t={t} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: t.text,
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {s.name}
                         </div>
-                      ))}
-                    </div>
-                  </section>
-                )}
-
-                {/* Monitoring section */}
-                {filtered.monitoring.length > 0 && (
-                  <section>
-                    <div style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      marginBottom: compact ? 8 : 12,
-                    }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={MONITORING_DISPLAY.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                        <circle cx="12" cy="12" r="3" />
-                      </svg>
-                      <span style={{
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: t.textSecondary,
-                        fontFamily: "var(--font-mono)",
-                        letterSpacing: 0.5,
-                        textTransform: "uppercase",
-                      }}>
-                        Monitoring ({filtered.monitoring.length})
-                      </span>
-                    </div>
-                    <div
-                      className="sh-grid"
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: compact
-                          ? "repeat(auto-fill, minmax(200px, 1fr))"
-                          : "repeat(auto-fill, minmax(280px, 1fr))",
-                        gap: compact ? 6 : 10,
-                      }}
-                    >
-                      {filtered.monitoring.map((s, i) => (
-                        <div key={s.slug} className="animate-slide-up" style={{ animationDelay: `${i * 0.025}s` }}>
-                          <ServiceCard
-                            name={s.name} slug={s.slug} currentStatus={s.currentStatus}
-                            logoUrl={s.logoUrl} latestIncident={s.latestIncident}
-                            monitoringCount={s.monitoringCount}
-                            latestMonitoringIncident={s.latestMonitoringIncident}
-                            compact={compact} onClick={() => setSelectedSlug(s.slug)}
-                            isInStack={myStack.includes(s.slug)}
-                            onToggleStack={() => toggleStack(s.slug)} t={t}
-                          />
+                        <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>
+                          {s.category}
                         </div>
-                      ))}
-                    </div>
-                  </section>
-                )}
+                      </div>
+                      <span
+                        style={{
+                          width: 7,
+                          height: 7,
+                          borderRadius: "50%",
+                          background: isOp ? "#16a34a" : "#ef4444",
+                          boxShadow: `0 0 6px ${isOp ? "#16a34a" : "#ef4444"}66`,
+                          flexShrink: 0,
+                        }}
+                      />
+                    </Link>
+                  );
+                })}
+          </div>
+        </section>
+      )}
 
-                {/* Operational section */}
-                {filtered.operational.length > 0 && (
-                  <section>
-                    <div style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      marginBottom: compact ? 8 : 12,
-                    }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                      <span style={{
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: t.textSecondary,
-                        fontFamily: "var(--font-mono)",
-                        letterSpacing: 0.5,
-                        textTransform: "uppercase",
-                      }}>
-                        Operational ({filtered.operational.length})
-                      </span>
-                    </div>
-                    <div
-                      className="sh-grid"
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: compact
-                          ? "repeat(auto-fill, minmax(200px, 1fr))"
-                          : "repeat(auto-fill, minmax(280px, 1fr))",
-                        gap: compact ? 6 : 10,
-                      }}
-                    >
-                      {filtered.operational.map((s, i) => (
-                        <div key={s.slug} className="animate-slide-up" style={{ animationDelay: `${i * 0.025}s` }}>
-                          <ServiceCard
-                            name={s.name} slug={s.slug} currentStatus={s.currentStatus}
-                            logoUrl={s.logoUrl} latestIncident={s.latestIncident}
-                            monitoringCount={s.monitoringCount}
-                            latestMonitoringIncident={s.latestMonitoringIncident}
-                            compact={compact} onClick={() => setSelectedSlug(s.slug)}
-                            isInStack={myStack.includes(s.slug)}
-                            onToggleStack={() => toggleStack(s.slug)} t={t}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                )}
-              </div>
-            )}
-
-            <div
-              style={{
-                textAlign: "center",
-                marginTop: 52,
-                fontSize: 11,
-                color: t.footerColor,
-                fontFamily: "var(--font-mono)",
-                letterSpacing: 0.5,
-              }}
-            >
-              {services.length} services monitored via official APIs · Refreshes
-              every 3 min
-            </div>
-          </>
-        )}
-      </main>
-    </div>
-  );
-}
-
-function LandingPage({ t }: { t: Theme }) {
-  const { signInWithGoogle, signInWithGitHub } = useUser();
-
-  return (
-    <div
-      className="theme-transition"
-      style={{
-        minHeight: "100vh",
-        background: t.bg,
-        fontFamily: "var(--font-sans)",
-        color: t.text,
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      {/* Header */}
-      <header
-        style={{
-          background: t.headerBg,
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
-          borderBottom: `1px solid ${t.border}`,
-          padding: "14px 0",
-        }}
-      >
-        <div
+      {/* ─── Fetch Error Banner ─── */}
+      {!servicesLoading && services.length === 0 && fetchError && (
+        <section
           style={{
             maxWidth: 1120,
             margin: "0 auto",
-            padding: "0 24px",
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
+            padding: "0 24px 60px",
           }}
         >
           <div
-            className="animate-glow"
             style={{
-              width: 32,
-              height: 32,
-              borderRadius: 9,
-              background: `linear-gradient(135deg, ${t.accentPrimary} 0%, ${t.accentGreen} 100%)`,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              color: "#fff",
-              fontSize: 15,
-              fontWeight: 700,
-              fontFamily: "var(--font-mono)",
+              gap: 10,
+              padding: "20px 24px",
+              borderRadius: 10,
+              background: t.surface,
+              border: `1px solid ${t.border}`,
             }}
           >
-            S
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <span style={{ fontSize: 13, color: t.textMuted }}>
+              Live status data is temporarily unavailable.
+            </span>
+            <Link
+              href="/dashboard"
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: t.accentPrimary,
+                textDecoration: "none",
+              }}
+            >
+              Try the dashboard
+            </Link>
           </div>
-          <span
-            style={{
-              fontWeight: 700,
-              fontSize: 19,
-              color: t.text,
-              letterSpacing: -0.5,
-            }}
-          >
-            StatusHub
-          </span>
-        </div>
-      </header>
+        </section>
+      )}
 
-      {/* Hero */}
-      <div
+      {/* ─── How It Works ─── */}
+      <section
         style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "80px 24px",
-          textAlign: "center",
-          maxWidth: 640,
+          maxWidth: 900,
           margin: "0 auto",
-          width: "100%",
+          padding: "0 24px 100px",
+          textAlign: "center",
         }}
       >
-        <div
+        <SectionLabel text="How it works" t={t} />
+        <h2
           style={{
-            width: 56,
-            height: 56,
-            borderRadius: 16,
-            background: `linear-gradient(135deg, ${t.accentPrimary}, ${t.accentGreen})`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#fff",
-            fontSize: 24,
-            fontWeight: 700,
-            fontFamily: "var(--font-mono)",
-            marginBottom: 28,
-          }}
-        >
-          S
-        </div>
-
-        <h1
-          style={{
-            fontSize: 40,
+            fontSize: 32,
             fontWeight: 700,
             letterSpacing: -1,
             lineHeight: 1.2,
-            marginBottom: 16,
-            margin: "0 0 16px 0",
+            margin: "0 0 48px 0",
           }}
         >
-          Monitor every service.
-          <br />
-          <span style={{ color: t.accentPrimary }}>One dashboard.</span>
-        </h1>
-
-        <p
-          style={{
-            fontSize: 17,
-            color: t.textMuted,
-            lineHeight: 1.6,
-            marginBottom: 40,
-            maxWidth: 480,
-          }}
-        >
-          Track the real-time status of 40+ services including AWS, GitHub,
-          Vercel, Stripe, and more. Build your personalized stack and never miss
-          an outage again.
-        </p>
-
-        {/* Feature highlights */}
+          Three steps. Zero config.
+        </h2>
         <div
-          className="sh-landing-features"
+          className="sh-landing-steps"
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(3, 1fr)",
-            gap: 16,
-            marginBottom: 48,
-            width: "100%",
+            gap: 24,
           }}
         >
           {[
             {
-              label: "40+ Services",
-              desc: "Real-time monitoring",
+              step: "01",
+              title: "Open the dashboard",
+              desc: "No signup required. Browse the full status of every service instantly.",
               icon: (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={t.accentPrimary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={t.accentPrimary} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
+                  <rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
                 </svg>
               ),
             },
             {
-              label: "My Stack",
-              desc: "Personalized dashboard",
+              step: "02",
+              title: "Build your stack",
+              desc: "Star the services your team depends on. Filter to see only what matters.",
               icon: (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={t.accentPrimary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={t.accentPrimary} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                 </svg>
               ),
             },
             {
-              label: "Cloud Sync",
-              desc: "Preferences everywhere",
+              step: "03",
+              title: "Get alerted",
+              desc: "Sign in to unlock email and push notifications. Know before your users do.",
               icon: (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={t.accentPrimary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z" />
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={t.accentPrimary} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                </svg>
+              ),
+            },
+          ].map((item) => (
+            <div
+              key={item.step}
+              className="animate-fade-in"
+              style={{
+                padding: "32px 24px",
+                borderRadius: 10,
+                background: t.surface,
+                border: `1px solid ${t.border}`,
+                textAlign: "center",
+                transition: "border-color 0.15s",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.borderColor = t.borderHover)}
+              onMouseLeave={(e) => (e.currentTarget.style.borderColor = t.border)}
+            >
+              <div
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 12,
+                  background: `${t.accentPrimary}10`,
+                  border: `1px solid ${t.accentPrimary}18`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  margin: "0 auto 20px",
+                }}
+              >
+                {item.icon}
+              </div>
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: t.accentPrimary,
+                  fontFamily: "var(--font-mono)",
+                  letterSpacing: 2,
+                  marginBottom: 10,
+                }}
+              >
+                STEP {item.step}
+              </div>
+              <div
+                style={{
+                  fontSize: 16,
+                  fontWeight: 600,
+                  color: t.text,
+                  marginBottom: 8,
+                }}
+              >
+                {item.title}
+              </div>
+              <div
+                style={{
+                  fontSize: 13,
+                  color: t.textMuted,
+                  lineHeight: 1.6,
+                }}
+              >
+                {item.desc}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ─── Feature Showcase: Real-time Monitoring ─── */}
+      <section
+        id="features"
+        style={{
+          maxWidth: 1000,
+          margin: "0 auto",
+          padding: "0 24px 100px",
+        }}
+      >
+        <div
+          className="sh-feature-row"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 48,
+            alignItems: "center",
+          }}
+        >
+          <div>
+            <SectionLabel text="Real-time monitoring" t={t} />
+            <h2
+              style={{
+                fontSize: 28,
+                fontWeight: 700,
+                letterSpacing: -0.5,
+                lineHeight: 1.2,
+                margin: "0 0 16px 0",
+              }}
+            >
+              Every service.
+              <br />
+              Every 3 minutes.
+            </h2>
+            <p
+              style={{
+                fontSize: 15,
+                color: t.textMuted,
+                lineHeight: 1.7,
+                marginBottom: 24,
+              }}
+            >
+              We poll official status APIs directly — no scraping, no proxies.
+              Component-level health breakdowns show you exactly what&apos;s
+              affected.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <FeaturePoint text={`${totalCount || "40+"}  services across 10+ categories`} t={t} />
+              <FeaturePoint text="Component-level health (not just service status)" t={t} />
+              <FeaturePoint text="Live incident timelines with update progression" t={t} />
+              <FeaturePoint text="Incident duration tracking — see outage length at a glance" t={t} />
+            </div>
+          </div>
+          {/* Mockup: monitoring card */}
+          <div
+            style={{
+              background: t.surface,
+              border: `1px solid ${t.border}`,
+              borderRadius: 12,
+              padding: 24,
+              boxShadow: t.shadowLg,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: t.textMuted, fontFamily: "var(--font-mono)", letterSpacing: 1, textTransform: "uppercase" }}>
+                Component Health
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: t.accentGreen, fontFamily: "var(--font-mono)" }}>
+                <span style={{ width: 5, height: 5, borderRadius: "50%", background: t.accentGreen }} />
+                Live
+              </div>
+            </div>
+            {[
+              { name: "API", status: "Operational" },
+              { name: "Dashboard", status: "Operational" },
+              { name: "Webhooks", status: "Degraded" },
+              { name: "Git Operations", status: "Operational" },
+              { name: "Actions", status: "Operational" },
+            ].map((c) => {
+              const isOk = c.status === "Operational";
+              return (
+                <div
+                  key={c.name}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "10px 0",
+                    borderBottom: `1px solid ${t.borderSubtle}`,
+                  }}
+                >
+                  <span style={{ fontSize: 13, color: t.text }}>{c.name}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        color: isOk ? t.accentGreen : "#f59e0b",
+                        fontFamily: "var(--font-mono)",
+                      }}
+                    >
+                      {c.status}
+                    </span>
+                    <span
+                      style={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: "50%",
+                        background: isOk ? t.accentGreen : "#f59e0b",
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+            <div style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: t.textFaint, fontFamily: "var(--font-mono)" }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+              </svg>
+              Refreshes every 3 minutes
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Feature Showcase: My Stack ─── */}
+      <section
+        style={{
+          maxWidth: 1000,
+          margin: "0 auto",
+          padding: "0 24px 100px",
+        }}
+      >
+        <div
+          className="sh-feature-row sh-feature-row-reverse"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 48,
+            alignItems: "center",
+          }}
+        >
+          {/* Mockup: My Stack */}
+          <div
+            style={{
+              background: t.surface,
+              border: `1px solid ${t.border}`,
+              borderRadius: 12,
+              padding: 24,
+              boxShadow: t.shadowLg,
+              order: 0,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 16,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill={t.accentPrimary} stroke="none">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+                <span style={{ fontSize: 12, fontWeight: 700, color: t.textMuted, fontFamily: "var(--font-mono)", letterSpacing: 1, textTransform: "uppercase" }}>
+                  My Stack
+                </span>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: t.accentPrimary,
+                    background: `${t.accentPrimary}12`,
+                    padding: "2px 6px",
+                    borderRadius: 4,
+                    fontFamily: "var(--font-mono)",
+                  }}
+                >
+                  5
+                </span>
+              </div>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: t.accentPrimary,
+                  fontFamily: "var(--font-mono)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                </svg>
+                Share
+              </div>
+            </div>
+            {["Vercel", "GitHub", "Supabase", "Stripe", "Cloudflare"].map(
+              (name, i) => (
+                <div
+                  key={name}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                    background: i === 0 ? `${t.accentPrimary}06` : "transparent",
+                    marginBottom: 4,
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <LogoIcon name={name} logoUrl={logoMap[name.toLowerCase()]} size={28} t={t} />
+                    <span style={{ fontSize: 13, fontWeight: 500, color: t.text }}>
+                      {name}
+                    </span>
+                  </div>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill={t.accentPrimary} stroke="none" style={{ opacity: 0.7 }}>
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                  </svg>
+                </div>
+              )
+            )}
+            <div
+              style={{
+                marginTop: 12,
+                padding: "10px 14px",
+                borderRadius: 8,
+                background: `${t.accentPrimary}08`,
+                border: `1px solid ${t.accentPrimary}15`,
+                fontSize: 11,
+                color: t.textMuted,
+                fontFamily: "var(--font-mono)",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={t.accentPrimary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+              </svg>
+              <span style={{ color: t.textFaint }}>
+                statushub.app/dashboard?stack=vercel,github,supabase
+              </span>
+            </div>
+          </div>
+          <div style={{ order: 1 }}>
+            <SectionLabel text="My Stack" t={t} />
+            <h2
+              style={{
+                fontSize: 28,
+                fontWeight: 700,
+                letterSpacing: -0.5,
+                lineHeight: 1.2,
+                margin: "0 0 16px 0",
+              }}
+            >
+              Your services.
+              <br />
+              Your dashboard.
+            </h2>
+            <p
+              style={{
+                fontSize: 15,
+                color: t.textMuted,
+                lineHeight: 1.7,
+                marginBottom: 24,
+              }}
+            >
+              Star the services your product depends on. Filter the dashboard
+              down to just your stack. Share it with your team via a single URL.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <FeaturePoint text="One-click star to add any service to your stack" t={t} />
+              <FeaturePoint text="Shareable stack URLs for team coordination" t={t} />
+              <FeaturePoint text="Filter view to see only what matters to you" t={t} />
+              <FeaturePoint text="Cloud sync — your stack follows you across devices" t={t} />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Feature Showcase: Notifications & Alerts (PREMIUM) ─── */}
+      <section
+        style={{
+          maxWidth: 1000,
+          margin: "0 auto",
+          padding: "0 24px 100px",
+        }}
+      >
+        <div
+          className="sh-feature-row"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 48,
+            alignItems: "center",
+          }}
+        >
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+              <SectionLabel text="Notifications" t={t} />
+              <span
+                style={{
+                  fontSize: 9,
+                  fontWeight: 700,
+                  color: t.accentPrimary,
+                  background: `${t.accentPrimary}12`,
+                  padding: "3px 8px",
+                  borderRadius: 4,
+                  fontFamily: "var(--font-mono)",
+                  letterSpacing: 1,
+                  textTransform: "uppercase",
+                  marginBottom: 16,
+                }}
+              >
+                Premium
+              </span>
+            </div>
+            <h2
+              style={{
+                fontSize: 28,
+                fontWeight: 700,
+                letterSpacing: -0.5,
+                lineHeight: 1.2,
+                margin: "0 0 16px 0",
+              }}
+            >
+              Know before
+              <br />
+              your users do.
+            </h2>
+            <p
+              style={{
+                fontSize: 15,
+                color: t.textMuted,
+                lineHeight: 1.7,
+                marginBottom: 24,
+              }}
+            >
+              Get instant alerts through email and browser push notifications.
+              Choose exactly which event types trigger alerts — from major outages
+              to scheduled maintenance.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <FeaturePoint text="Email alerts with custom address support" t={t} />
+              <FeaturePoint text="Browser push notifications for instant awareness" t={t} />
+              <FeaturePoint text="5 granular event types — pick exactly what you need" t={t} />
+              <FeaturePoint text="One-click test email to verify your setup" t={t} />
+              <FeaturePoint text="Only alerts for your starred services — no noise" t={t} />
+            </div>
+          </div>
+          {/* Mockup: Notification settings */}
+          <div
+            style={{
+              background: t.surface,
+              border: `1px solid ${t.border}`,
+              borderRadius: 12,
+              padding: 24,
+              boxShadow: t.shadowLg,
+            }}
+          >
+            <div style={{ fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>
+              Email Notifications
+            </div>
+            <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 20 }}>
+              Choose which events trigger an email alert
+            </div>
+            {[
+              { label: "Major Outages", desc: "Complete service failures", on: true },
+              { label: "Partial Outages", desc: "Some features unavailable", on: true },
+              { label: "Degraded Performance", desc: "Slower than normal", on: true },
+              { label: "Maintenance Windows", desc: "Planned downtime", on: false },
+              { label: "Service Recoveries", desc: "When services come back", on: true },
+            ].map((n) => (
+              <div
+                key={n.label}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "10px 0",
+                  borderBottom: `1px solid ${t.borderSubtle}`,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: t.text }}>{n.label}</div>
+                  <div style={{ fontSize: 11, color: t.textFaint, marginTop: 1 }}>{n.desc}</div>
+                </div>
+                <div
+                  style={{
+                    width: 34,
+                    height: 18,
+                    borderRadius: 9,
+                    background: n.on ? t.accentPrimary : `${t.textFaint}40`,
+                    position: "relative",
+                    flexShrink: 0,
+                    transition: "background 0.15s",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 14,
+                      height: 14,
+                      borderRadius: "50%",
+                      background: "#fff",
+                      position: "absolute",
+                      top: 2,
+                      left: n.on ? 18 : 2,
+                      transition: "left 0.15s",
+                      boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+            <div
+              style={{
+                marginTop: 16,
+                display: "flex",
+                gap: 8,
+              }}
+            >
+              <div
+                style={{
+                  flex: 1,
+                  padding: "8px 12px",
+                  borderRadius: 6,
+                  border: `1px solid ${t.border}`,
+                  background: t.bg,
+                  fontSize: 12,
+                  color: t.textFaint,
+                  fontFamily: "var(--font-sans)",
+                }}
+              >
+                you@company.com
+              </div>
+              <div
+                style={{
+                  padding: "8px 14px",
+                  borderRadius: 6,
+                  background: t.accentPrimary,
+                  color: "#fff",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                  <polyline points="22,6 12,13 2,6" />
+                </svg>
+                Test
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Feature Showcase: Incident Intelligence ─── */}
+      <section
+        style={{
+          maxWidth: 1000,
+          margin: "0 auto",
+          padding: "0 24px 100px",
+        }}
+      >
+        <div
+          className="sh-feature-row sh-feature-row-reverse"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 48,
+            alignItems: "center",
+          }}
+        >
+          {/* Mockup: Incident timeline */}
+          <div
+            style={{
+              background: t.surface,
+              border: `1px solid ${t.border}`,
+              borderRadius: 12,
+              padding: 24,
+              boxShadow: t.shadowLg,
+              order: 0,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>
+                Elevated Error Rates
+              </div>
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: "#ef4444",
+                  background: "rgba(239,68,68,0.10)",
+                  padding: "3px 8px",
+                  borderRadius: 4,
+                  fontFamily: "var(--font-mono)",
+                }}
+              >
+                2h 14m
+              </span>
+            </div>
+            {[
+              { status: "Investigating", time: "2:14 PM", text: "We are investigating elevated error rates for API requests.", color: "#ef4444" },
+              { status: "Identified", time: "2:28 PM", text: "The issue has been identified and a fix is being deployed.", color: "#f59e0b" },
+              { status: "Monitoring", time: "2:52 PM", text: "A fix has been deployed. We are monitoring the results.", color: "#6366f1" },
+              { status: "Resolved", time: "4:28 PM", text: "This incident has been resolved. All systems operational.", color: "#16a34a" },
+            ].map((update, i) => (
+              <div
+                key={i}
+                style={{
+                  display: "flex",
+                  gap: 14,
+                  paddingBottom: i < 3 ? 16 : 0,
+                  marginBottom: i < 3 ? 16 : 0,
+                  borderBottom: i < 3 ? `1px solid ${t.borderSubtle}` : "none",
+                }}
+              >
+                <div
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    background: update.color,
+                    flexShrink: 0,
+                    marginTop: 5,
+                  }}
+                />
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: update.color, fontFamily: "var(--font-mono)" }}>
+                      {update.status}
+                    </span>
+                    <span style={{ fontSize: 10, color: t.textFaint, fontFamily: "var(--font-mono)" }}>
+                      {update.time}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.5 }}>
+                    {update.text}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ order: 1 }}>
+            <SectionLabel text="Incident Intelligence" t={t} />
+            <h2
+              style={{
+                fontSize: 28,
+                fontWeight: 700,
+                letterSpacing: -0.5,
+                lineHeight: 1.2,
+                margin: "0 0 16px 0",
+              }}
+            >
+              Full incident
+              <br />
+              visibility.
+            </h2>
+            <p
+              style={{
+                fontSize: 15,
+                color: t.textMuted,
+                lineHeight: 1.7,
+                marginBottom: 24,
+              }}
+            >
+              See every incident as it happens — from initial investigation through
+              resolution. Track how long outages last and drill into the full
+              update timeline.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <FeaturePoint text="Status progression: Investigating → Identified → Monitoring → Resolved" t={t} />
+              <FeaturePoint text="Live duration tracking for ongoing incidents" t={t} />
+              <FeaturePoint text="Full update timeline with timestamps" t={t} />
+              <FeaturePoint text="Separate tracking for monitoring-only incidents" t={t} />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Pricing / Free vs Premium ─── */}
+      <section
+        id="pricing"
+        style={{
+          maxWidth: 800,
+          margin: "0 auto",
+          padding: "0 24px 100px",
+          textAlign: "center",
+        }}
+      >
+        <SectionLabel text="Pricing" t={t} />
+        <h2
+          style={{
+            fontSize: 32,
+            fontWeight: 700,
+            letterSpacing: -1,
+            lineHeight: 1.2,
+            margin: "0 0 12px 0",
+          }}
+        >
+          Free forever. Premium when you need it.
+        </h2>
+        <p
+          style={{
+            fontSize: 15,
+            color: t.textMuted,
+            lineHeight: 1.6,
+            maxWidth: 520,
+            margin: "0 auto 40px",
+          }}
+        >
+          The full dashboard is free with no signup. Sign in to unlock
+          notifications, cloud sync, and more.
+        </p>
+        <div
+          className="sh-pricing-grid"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 16,
+            textAlign: "left",
+          }}
+        >
+          {/* Free tier */}
+          <div
+            style={{
+              padding: 28,
+              borderRadius: 12,
+              background: t.surface,
+              border: `1px solid ${t.border}`,
+              transition: "border-color 0.15s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.borderColor = t.borderHover)}
+            onMouseLeave={(e) => (e.currentTarget.style.borderColor = t.border)}
+          >
+            <div style={{ fontSize: 11, fontWeight: 700, color: t.textMuted, fontFamily: "var(--font-mono)", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>
+              Free
+            </div>
+            <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: -1, color: t.text, marginBottom: 4 }}>
+              $0
+            </div>
+            <div style={{ fontSize: 13, color: t.textFaint, marginBottom: 24 }}>
+              No signup required
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {[
+                "Full dashboard access",
+                `All ${totalCount || "40+"} services monitored`,
+                "My Stack (local storage)",
+                "Search, filter & sort",
+                "Service detail & incident history",
+                "Compact & comfortable views",
+                "3 themes (dark, light, midnight)",
+                "Keyboard shortcuts",
+              ].map((f) => (
+                <div
+                  key={f}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    fontSize: 13,
+                    color: t.textSecondary,
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={t.accentGreen} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  {f}
+                </div>
+              ))}
+            </div>
+            <Link
+              href="/dashboard"
+              style={{
+                display: "block",
+                textAlign: "center",
+                marginTop: 28,
+                padding: "10px 0",
+                borderRadius: 8,
+                border: `1px solid ${t.border}`,
+                color: t.textSecondary,
+                fontSize: 14,
+                fontWeight: 600,
+                textDecoration: "none",
+                fontFamily: "var(--font-sans)",
+                transition: "all 0.15s",
+              }}
+            >
+              Open Dashboard
+            </Link>
+          </div>
+          {/* Premium tier */}
+          <div
+            style={{
+              padding: 28,
+              borderRadius: 12,
+              background: t.surface,
+              border: `1px solid ${t.accentPrimary}35`,
+              position: "relative",
+              transition: "border-color 0.15s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.borderColor = `${t.accentPrimary}`)}
+            onMouseLeave={(e) => (e.currentTarget.style.borderColor = `${t.accentPrimary}35`)}
+          >
+            <div
+              style={{
+                position: "absolute",
+                top: -10,
+                right: 20,
+                fontSize: 10,
+                fontWeight: 700,
+                color: "#fff",
+                background: t.accentPrimary,
+                padding: "3px 10px",
+                borderRadius: 4,
+                fontFamily: "var(--font-mono)",
+                letterSpacing: 0.5,
+              }}
+            >
+              RECOMMENDED
+            </div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: t.accentPrimary, fontFamily: "var(--font-mono)", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>
+              Premium
+            </div>
+            <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: -1, color: t.text, marginBottom: 4 }}>
+              Free<span style={{ fontSize: 14, fontWeight: 500, color: t.textFaint }}> (beta)</span>
+            </div>
+            <div style={{ fontSize: 13, color: t.textFaint, marginBottom: 24 }}>
+              Sign in with GitHub or Google
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {[
+                "Everything in Free",
+                "Email notifications (5 event types)",
+                "Browser push notifications",
+                "Granular alert controls",
+                "Custom email address",
+                "Cloud-synced preferences",
+                "My Stack synced across devices",
+                "Shareable stack URLs",
+              ].map((f) => (
+                <div
+                  key={f}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    fontSize: 13,
+                    color: t.textSecondary,
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={t.accentPrimary} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  {f}
+                </div>
+              ))}
+            </div>
+            {isSupabaseEnabled && !user ? (
+              <button
+                onClick={signInWithGitHub}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "center",
+                  marginTop: 28,
+                  padding: "10px 0",
+                  borderRadius: 8,
+                  border: "none",
+                  background: t.accentPrimary,
+                  color: "#fff",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "var(--font-sans)",
+                  transition: "opacity 0.15s",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.9")}
+                onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+              >
+                Sign In Free
+              </button>
+            ) : (
+              <Link
+                href="/dashboard"
+                style={{
+                  display: "block",
+                  textAlign: "center",
+                  marginTop: 28,
+                  padding: "10px 0",
+                  borderRadius: 8,
+                  border: "none",
+                  background: t.accentPrimary,
+                  color: "#fff",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  textDecoration: "none",
+                  fontFamily: "var(--font-sans)",
+                }}
+              >
+                Go to Dashboard
+              </Link>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Additional Features Grid ─── */}
+      <section
+        style={{
+          maxWidth: 1000,
+          margin: "0 auto",
+          padding: "0 24px 100px",
+          textAlign: "center",
+        }}
+      >
+        <SectionLabel text="And more" t={t} />
+        <h2
+          style={{
+            fontSize: 28,
+            fontWeight: 700,
+            letterSpacing: -0.5,
+            lineHeight: 1.2,
+            margin: "0 0 40px 0",
+          }}
+        >
+          Built for developers.
+        </h2>
+        <div
+          className="sh-landing-features-grid"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: 12,
+          }}
+        >
+          {[
+            {
+              title: "Keyboard First",
+              desc: "Cmd+K to search, Esc to close. Designed for speed.",
+              icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={t.accentPrimary} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="4" width="20" height="16" rx="2" /><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10" />
+                </svg>
+              ),
+            },
+            {
+              title: "3 Themes",
+              desc: "Dark, Light, and Midnight. Switch instantly.",
+              icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={t.accentPrimary} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                </svg>
+              ),
+            },
+            {
+              title: "10+ Categories",
+              desc: "Cloud, DevOps, AI/ML, Payments, Design, and more.",
+              icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={t.accentPrimary} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
+                </svg>
+              ),
+            },
+            {
+              title: "Compact View",
+              desc: "Dense or comfortable. Toggle between scan and detail modes.",
+              icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={t.accentPrimary} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="3" y1="15" x2="21" y2="15" />
+                </svg>
+              ),
+            },
+            {
+              title: "Open Source",
+              desc: "MIT licensed. Self-host or use our cloud. Your data.",
+              icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={t.accentPrimary} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
+                </svg>
+              ),
+            },
+            {
+              title: "Official APIs",
+              desc: "Direct integration with official status APIs. No scraping.",
+              icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={t.accentPrimary} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
                 </svg>
               ),
             },
           ].map((f) => (
             <div
-              key={f.label}
+              key={f.title}
               style={{
-                padding: "20px 16px",
-                borderRadius: 14,
+                padding: "24px 20px",
+                borderRadius: 10,
                 background: t.surface,
                 border: `1px solid ${t.border}`,
-                textAlign: "center",
+                textAlign: "left",
+                transition: "border-color 0.15s",
               }}
+              onMouseEnter={(e) => (e.currentTarget.style.borderColor = t.borderHover)}
+              onMouseLeave={(e) => (e.currentTarget.style.borderColor = t.border)}
             >
-              <div style={{ marginBottom: 10 }}>{f.icon}</div>
               <div
                 style={{
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: t.text,
+                  width: 36,
+                  height: 36,
+                  borderRadius: 8,
+                  background: `${t.accentPrimary}10`,
+                  border: `1px solid ${t.accentPrimary}18`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginBottom: 14,
                 }}
               >
-                {f.label}
+                {f.icon}
               </div>
-              <div
-                style={{
-                  fontSize: 12,
-                  color: t.textMuted,
-                  marginTop: 4,
-                }}
-              >
+              <div style={{ fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 6 }}>
+                {f.title}
+              </div>
+              <div style={{ fontSize: 13, color: t.textMuted, lineHeight: 1.5 }}>
                 {f.desc}
               </div>
             </div>
           ))}
         </div>
+      </section>
 
-        {/* Sign-in buttons */}
+      {/* ─── Trust Signals ─── */}
+      <section
+        style={{
+          maxWidth: 700,
+          margin: "0 auto",
+          padding: "0 24px 100px",
+        }}
+      >
         <div
           style={{
             display: "flex",
-            flexDirection: "column",
-            gap: 12,
-            width: "100%",
-            maxWidth: 320,
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 48,
+            flexWrap: "wrap",
           }}
         >
-          <AuthButton t={t} />
+          {[
+            { value: `${totalCount || "40+"}`, label: "Services Monitored" },
+            { value: "3min", label: "Refresh Cycle" },
+            { value: "Free", label: "Forever" },
+            { value: "MIT", label: "Licensed" },
+          ].map((s) => (
+            <div key={s.label} style={{ textAlign: "center" }}>
+              <div
+                style={{
+                  fontSize: 26,
+                  fontWeight: 700,
+                  color: t.text,
+                  fontFamily: "var(--font-mono)",
+                  letterSpacing: -0.5,
+                }}
+              >
+                {s.value}
+              </div>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: t.textMuted,
+                  fontFamily: "var(--font-mono)",
+                  letterSpacing: 0.5,
+                  textTransform: "uppercase",
+                  marginTop: 2,
+                }}
+              >
+                {s.label}
+              </div>
+            </div>
+          ))}
         </div>
+      </section>
 
-        <p
+      {/* ─── Final CTA ─── */}
+      <section
+        style={{
+          maxWidth: 640,
+          margin: "0 auto",
+          padding: "0 24px 100px",
+          textAlign: "center",
+        }}
+      >
+        <div
           style={{
-            fontSize: 11,
-            color: t.footerColor,
-            marginTop: 24,
-            fontFamily: "var(--font-mono)",
+            background: t.surface,
+            border: `1px solid ${t.border}`,
+            borderRadius: 12,
+            padding: "56px 32px",
           }}
         >
-          Free and open source. Your data stays yours.
-        </p>
-      </div>
+          <h2
+            style={{
+              fontSize: 28,
+              fontWeight: 700,
+              letterSpacing: -0.5,
+              lineHeight: 1.3,
+              margin: "0 0 12px 0",
+            }}
+          >
+            Don&apos;t wait for your users
+            <br />
+            to tell you about outages.
+          </h2>
+          <p
+            style={{
+              fontSize: 14,
+              color: t.textMuted,
+              lineHeight: 1.6,
+              marginBottom: 32,
+              maxWidth: 420,
+              marginLeft: "auto",
+              marginRight: "auto",
+            }}
+          >
+            Start monitoring the services your product depends on. Set up
+            alerts in seconds. Free, open source, and zero configuration.
+          </p>
+          <div
+            className="sh-landing-cta-buttons"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 12,
+            }}
+          >
+            <Link
+              href="/dashboard"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                background: t.accentPrimary,
+                color: "#fff",
+                border: "none",
+                borderRadius: 10,
+                padding: "12px 28px",
+                fontSize: 15,
+                fontWeight: 600,
+                textDecoration: "none",
+                fontFamily: "var(--font-sans)",
+                transition: "opacity 0.15s",
+              }}
+            >
+              Open Dashboard
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="5" y1="12" x2="19" y2="12" />
+                <polyline points="12 5 19 12 12 19" />
+              </svg>
+            </Link>
+            {isSupabaseEnabled && !user && (
+              <button
+                onClick={signInWithGitHub}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  background: "transparent",
+                  color: t.textSecondary,
+                  border: `1px solid ${t.border}`,
+                  borderRadius: 10,
+                  padding: "12px 24px",
+                  fontSize: 15,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  fontFamily: "var(--font-sans)",
+                  transition: "all 0.15s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = t.borderHover;
+                  e.currentTarget.style.background = t.surfaceHover;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = t.border;
+                  e.currentTarget.style.background = "transparent";
+                }}
+              >
+                Sign In for Alerts
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Footer ─── */}
+      <AppFooter t={t} />
     </div>
   );
 }

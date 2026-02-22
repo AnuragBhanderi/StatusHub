@@ -23,8 +23,8 @@ const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(
             transform: "translateY(-50%)",
             pointerEvents: "none",
           }}
-          width="16"
-          height="16"
+          width="15"
+          height="15"
           viewBox="0 0 24 24"
           fill="none"
           stroke={t.textFaint}
@@ -38,7 +38,7 @@ const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(
           ref={ref}
           type="text"
           className="sh-search-input"
-          placeholder="Search services... (⌘K)"
+          placeholder="Search services..."
           aria-label="Search services"
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -46,18 +46,61 @@ const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(
           onBlur={() => setFocused(false)}
           style={{
             width: "100%",
-            padding: "12px 38px 12px 40px",
-            borderRadius: 12,
-            border: `1px solid ${focused ? t.accentPrimary + "66" : t.border}`,
+            padding: "11px 70px 11px 40px",
+            borderRadius: 8,
+            border: `1px solid ${focused ? t.accentPrimary + "50" : t.border}`,
             fontSize: 14,
             fontFamily: "var(--font-sans)",
             outline: "none",
             background: t.searchBg,
             color: t.searchText,
             transition: "all 0.2s",
-            boxShadow: focused ? `0 0 0 3px ${t.accentPrimary}15` : "none",
+            boxShadow: "none",
           }}
         />
+        {!value && (
+          <div
+            style={{
+              position: "absolute",
+              right: 12,
+              top: "50%",
+              transform: "translateY(-50%)",
+              display: "flex",
+              alignItems: "center",
+              gap: 3,
+              pointerEvents: "none",
+            }}
+          >
+            <kbd
+              style={{
+                fontSize: 10,
+                fontFamily: "var(--font-mono)",
+                color: t.textFaint,
+                background: t.tagBg,
+                border: `1px solid ${t.border}`,
+                borderRadius: 4,
+                padding: "2px 5px",
+                lineHeight: 1,
+              }}
+            >
+              ⌘
+            </kbd>
+            <kbd
+              style={{
+                fontSize: 10,
+                fontFamily: "var(--font-mono)",
+                color: t.textFaint,
+                background: t.tagBg,
+                border: `1px solid ${t.border}`,
+                borderRadius: 4,
+                padding: "2px 5px",
+                lineHeight: 1,
+              }}
+            >
+              K
+            </kbd>
+          </div>
+        )}
         {value && (
           <button
             onClick={() => onChange("")}
@@ -75,7 +118,7 @@ const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(
               alignItems: "center",
               justifyContent: "center",
               color: t.textFaint,
-              borderRadius: 6,
+              borderRadius: 4,
               transition: "color 0.15s",
             }}
             onMouseEnter={(e) =>

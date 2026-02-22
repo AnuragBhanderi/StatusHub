@@ -43,8 +43,8 @@ export default function NotificationBell({ pushEnabled, onToggle, t }: Notificat
       }
       style={{
         position: "relative",
-        width: 32,
-        height: 32,
+        width: 30,
+        height: 30,
         borderRadius: 8,
         border: `1px solid ${t.border}`,
         background: "transparent",
@@ -56,10 +56,16 @@ export default function NotificationBell({ pushEnabled, onToggle, t }: Notificat
         transition: "all 0.15s",
         flexShrink: 0,
       }}
+      onMouseEnter={(e) => {
+        if (!isDenied) e.currentTarget.style.borderColor = t.borderHover;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = t.border;
+      }}
     >
       <svg
-        width="16"
-        height="16"
+        width="15"
+        height="15"
         viewBox="0 0 24 24"
         fill="none"
         stroke={pushEnabled ? t.accentPrimary : t.textMuted}
@@ -76,13 +82,13 @@ export default function NotificationBell({ pushEnabled, onToggle, t }: Notificat
         <span
           style={{
             position: "absolute",
-            top: 5,
-            right: 5,
-            width: 7,
-            height: 7,
+            top: 4,
+            right: 4,
+            width: 6,
+            height: 6,
             borderRadius: "50%",
             background: t.accentGreen,
-            boxShadow: `0 0 6px ${t.accentGreen}80`,
+            boxShadow: `0 0 4px ${t.accentGreen}60`,
           }}
         />
       )}
@@ -90,8 +96,8 @@ export default function NotificationBell({ pushEnabled, onToggle, t }: Notificat
       {/* Denied strikethrough */}
       {isDenied && (
         <svg
-          width="16"
-          height="16"
+          width="15"
+          height="15"
           viewBox="0 0 24 24"
           style={{ position: "absolute" }}
         >

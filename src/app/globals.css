@@ -35,7 +35,18 @@
 @keyframes fade-in {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
   }
   to {
     opacity: 1;
@@ -54,13 +65,24 @@
   }
 }
 
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 @keyframes glow {
   0%,
   100% {
-    box-shadow: 0 0 12px rgba(99, 140, 255, 0.15);
+    box-shadow: 0 0 12px rgba(99, 102, 241, 0.15);
   }
   50% {
-    box-shadow: 0 0 20px rgba(99, 140, 255, 0.3);
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
   }
 }
 
@@ -73,6 +95,15 @@
   }
 }
 
+@keyframes sh-skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.sh-skeleton-pulse {
+  animation: sh-skeleton-pulse 1.5s ease-in-out infinite;
+}
+
 .animate-pulse-dot {
   animation: pulse-dot 2s ease-in-out infinite;
 }
@@ -81,8 +112,16 @@
   animation: fade-in 0.3s ease forwards;
 }
 
+.animate-fade-in-up {
+  animation: fade-in-up 0.5s ease forwards;
+}
+
 .animate-slide-up {
   animation: slide-up 0.3s ease both;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.2s ease forwards;
 }
 
 .animate-glow {
@@ -92,6 +131,13 @@
 .animate-spin-slow {
   animation: spin-slow 8s linear infinite;
 }
+
+/* Stagger classes for sequential section reveals */
+.stagger-1 { animation-delay: 0.1s; }
+.stagger-2 { animation-delay: 0.2s; }
+.stagger-3 { animation-delay: 0.3s; }
+.stagger-4 { animation-delay: 0.4s; }
+.stagger-5 { animation-delay: 0.5s; }
 
 /* Theme transitions */
 .theme-transition {
@@ -114,7 +160,7 @@
   }
   .sh-banner {
     padding: 16px 18px !important;
-    border-radius: 12px !important;
+    border-radius: 10px !important;
   }
   .sh-banner-icon {
     width: 36px !important;
@@ -155,7 +201,7 @@
     display: none !important;
   }
   .sh-pills {
-    margin-bottom: 20px !important;
+    margin-bottom: 16px !important;
   }
   .sh-detail-header {
     flex-direction: column !important;
@@ -167,11 +213,64 @@
     justify-content: flex-start !important;
   }
   .sh-detail-tabs {
-    gap: 4px !important;
+    gap: 0 !important;
   }
   .sh-detail-tabs button {
     padding: 8px 14px !important;
     font-size: 12px !important;
+  }
+
+  /* Landing page responsive */
+  .sh-landing-hero {
+    padding-top: 60px !important;
+    padding-bottom: 48px !important;
+  }
+  .sh-hero-title {
+    font-size: 36px !important;
+    letter-spacing: -1px !important;
+  }
+  .sh-landing-features {
+    grid-template-columns: 1fr !important;
+  }
+  .sh-landing-preview {
+    padding-bottom: 48px !important;
+  }
+  .sh-landing-cta-buttons {
+    flex-direction: column !important;
+    width: 100% !important;
+    max-width: 320px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+  .sh-landing-cta-buttons a,
+  .sh-landing-cta-buttons button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+  .sh-feature-row {
+    grid-template-columns: 1fr !important;
+    gap: 32px !important;
+  }
+  .sh-feature-row-reverse > *:first-child {
+    order: 1 !important;
+  }
+  .sh-feature-row-reverse > *:last-child {
+    order: 0 !important;
+  }
+  .sh-landing-steps {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  .sh-pricing-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  .sh-landing-features-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+  .sh-hide-mobile {
+    display: none !important;
   }
 }
 
@@ -186,11 +285,27 @@
   .sh-header-beta {
     display: none !important;
   }
+  .sh-header-right {
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    justify-content: flex-end !important;
+  }
+  .sh-live-text {
+    display: none !important;
+  }
+  .sh-landing-nav {
+    overflow-x: auto !important;
+    -ms-overflow-style: none !important;
+    scrollbar-width: none !important;
+  }
+  .sh-landing-nav::-webkit-scrollbar {
+    display: none !important;
+  }
   .sh-banner-title {
-    font-size: 15px !important;
+    font-size: 14px !important;
   }
   .sh-banner-subtitle {
-    font-size: 12px !important;
+    font-size: 11px !important;
   }
   .sh-banner-chips {
     flex-direction: column !important;
@@ -201,11 +316,22 @@
     padding: 10px 36px 10px 38px !important;
   }
   .sh-pills {
-    gap: 6px !important;
+    gap: 5px !important;
   }
   .sh-pills button {
-    padding: 6px 12px !important;
+    padding: 5px 10px !important;
     font-size: 11px !important;
+  }
+  .sh-hero-title {
+    font-size: 28px !important;
+    letter-spacing: -0.5px !important;
+  }
+  .sh-landing-features {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+  .sh-landing-features-grid {
+    grid-template-columns: 1fr !important;
   }
 }
 
@@ -213,9 +339,12 @@
 @media (prefers-reduced-motion: reduce) {
   .animate-pulse-dot,
   .animate-fade-in,
+  .animate-fade-in-up,
   .animate-slide-up,
+  .animate-scale-in,
   .animate-glow,
-  .animate-spin-slow {
+  .animate-spin-slow,
+  .sh-skeleton-pulse {
     animation: none !important;
   }
   .theme-transition {

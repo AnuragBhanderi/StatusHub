@@ -40,10 +40,10 @@ export default function UserMenu({ t }: UserMenuProps) {
           onClick={() => setOpen(!open)}
           aria-label="User menu"
           style={{
-            width: 32,
-            height: 32,
+            width: 30,
+            height: 30,
             borderRadius: "50%",
-            border: `2px solid ${t.border}`,
+            border: `1px solid ${t.border}`,
             cursor: "pointer",
             overflow: "hidden",
             background: t.surface,
@@ -51,20 +51,23 @@ export default function UserMenu({ t }: UserMenuProps) {
             alignItems: "center",
             justifyContent: "center",
             padding: 0,
+            transition: "border-color 0.15s",
           }}
+          onMouseEnter={(e) => (e.currentTarget.style.borderColor = t.borderHover)}
+          onMouseLeave={(e) => (e.currentTarget.style.borderColor = t.border)}
         >
           {avatarUrl ? (
             <img
               src={avatarUrl}
               alt=""
-              width={32}
-              height={32}
+              width={30}
+              height={30}
               style={{ objectFit: "cover" }}
             />
           ) : (
             <span
               style={{
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: 700,
                 color: t.textMuted,
                 fontFamily: "var(--font-sans)",
@@ -77,6 +80,7 @@ export default function UserMenu({ t }: UserMenuProps) {
 
         {open && (
           <div
+            className="animate-scale-in"
             style={{
               position: "absolute",
               top: "calc(100% + 8px)",
@@ -84,16 +88,17 @@ export default function UserMenu({ t }: UserMenuProps) {
               minWidth: 220,
               background: t.surface,
               border: `1px solid ${t.border}`,
-              borderRadius: 12,
-              boxShadow: t.cardShadow,
-              padding: 8,
+              borderRadius: 10,
+              boxShadow: t.shadowLg,
+              padding: 6,
               zIndex: 200,
             }}
           >
             <div
               style={{
-                padding: "8px 12px",
+                padding: "8px 10px",
                 borderBottom: `1px solid ${t.divider}`,
+                marginBottom: 4,
               }}
             >
               <div
@@ -124,9 +129,9 @@ export default function UserMenu({ t }: UserMenuProps) {
               }}
               style={{
                 width: "100%",
-                padding: "10px 12px",
+                padding: "8px 10px",
                 border: "none",
-                borderRadius: 8,
+                borderRadius: 6,
                 cursor: "pointer",
                 background: "transparent",
                 color: t.textSecondary,
@@ -134,7 +139,6 @@ export default function UserMenu({ t }: UserMenuProps) {
                 fontWeight: 500,
                 fontFamily: "var(--font-sans)",
                 textAlign: "left" as const,
-                marginTop: 4,
                 transition: "background 0.15s",
                 display: "flex",
                 alignItems: "center",
@@ -169,9 +173,9 @@ export default function UserMenu({ t }: UserMenuProps) {
               }}
               style={{
                 width: "100%",
-                padding: "10px 12px",
+                padding: "8px 10px",
                 border: "none",
-                borderRadius: 8,
+                borderRadius: 6,
                 cursor: "pointer",
                 background: "transparent",
                 color: t.textSecondary,

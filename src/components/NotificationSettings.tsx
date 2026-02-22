@@ -133,15 +133,16 @@ export default function NotificationSettings({
       }}
     >
       <div
+        className="animate-scale-in"
         style={{
           background: t.surface,
           border: `1px solid ${t.border}`,
-          borderRadius: 16,
+          borderRadius: 12,
           maxWidth: 440,
           width: "100%",
           maxHeight: "calc(100vh - 48px)",
           overflowY: "auto",
-          boxShadow: t.cardShadow,
+          boxShadow: t.shadowLg,
           margin: "auto",
         }}
       >
@@ -151,14 +152,14 @@ export default function NotificationSettings({
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            padding: "16px 20px",
+            padding: "14px 18px",
             borderBottom: `1px solid ${t.divider}`,
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <svg
-              width="18"
-              height="18"
+              width="16"
+              height="16"
               viewBox="0 0 24 24"
               fill="none"
               stroke={t.accentPrimary}
@@ -169,7 +170,7 @@ export default function NotificationSettings({
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
               <path d="M13.73 21a2 2 0 0 1-3.46 0" />
             </svg>
-            <span style={{ fontSize: 15, fontWeight: 600, color: t.text }}>
+            <span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>
               Notification Settings
             </span>
           </div>
@@ -183,11 +184,12 @@ export default function NotificationSettings({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              borderRadius: 4,
             }}
           >
             <svg
-              width="18"
-              height="18"
+              width="16"
+              height="16"
               viewBox="0 0 24 24"
               fill="none"
               stroke={t.textMuted}
@@ -202,18 +204,18 @@ export default function NotificationSettings({
         </div>
 
         {/* Body */}
-        <div style={{ padding: "20px" }}>
+        <div style={{ padding: "18px" }}>
           {/* Push Notifications Section */}
-          <div style={{ marginBottom: 24 }}>
+          <div style={{ marginBottom: 22 }}>
             <div
               style={{
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: 700,
                 color: t.textSecondary,
                 fontFamily: "var(--font-mono)",
                 letterSpacing: 0.5,
                 textTransform: "uppercase",
-                marginBottom: 12,
+                marginBottom: 10,
               }}
             >
               Push Notifications
@@ -226,7 +228,7 @@ export default function NotificationSettings({
                 justifyContent: "space-between",
                 padding: "12px 14px",
                 background: t.bg,
-                borderRadius: 10,
+                borderRadius: 8,
                 border: `1px solid ${t.border}`,
               }}
             >
@@ -251,7 +253,7 @@ export default function NotificationSettings({
                     color: "#fff",
                     border: "none",
                     borderRadius: 6,
-                    padding: "6px 12px",
+                    padding: "5px 12px",
                     fontSize: 11,
                     fontWeight: 600,
                     cursor: "pointer",
@@ -272,16 +274,16 @@ export default function NotificationSettings({
           </div>
 
           {/* Email Notifications Section */}
-          <div style={{ marginBottom: 20 }}>
+          <div style={{ marginBottom: 18 }}>
             <div
               style={{
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: 700,
                 color: t.textSecondary,
                 fontFamily: "var(--font-mono)",
                 letterSpacing: 0.5,
                 textTransform: "uppercase",
-                marginBottom: 12,
+                marginBottom: 10,
               }}
             >
               Email Alerts
@@ -291,7 +293,7 @@ export default function NotificationSettings({
               style={{
                 padding: "14px",
                 background: t.bg,
-                borderRadius: 10,
+                borderRadius: 8,
                 border: `1px solid ${t.border}`,
                 display: "flex",
                 flexDirection: "column",
@@ -340,7 +342,7 @@ export default function NotificationSettings({
                       style={{
                         width: "100%",
                         padding: "8px 12px",
-                        borderRadius: 8,
+                        borderRadius: 6,
                         border: `1px solid ${t.border}`,
                         background: t.searchBg,
                         color: t.text,
@@ -365,7 +367,7 @@ export default function NotificationSettings({
                     >
                       Notify me about
                     </label>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                       {EVENT_TYPES.map((evt) => {
                         const checked = enabledEvents.has(evt.key);
                         return (
@@ -377,10 +379,10 @@ export default function NotificationSettings({
                               display: "flex",
                               alignItems: "center",
                               gap: 10,
-                              padding: "8px 10px",
-                              borderRadius: 8,
-                              border: `1px solid ${checked ? evt.color + "40" : t.border}`,
-                              background: checked ? evt.color + "0a" : "transparent",
+                              padding: "7px 10px",
+                              borderRadius: 6,
+                              border: `1px solid ${checked ? evt.color + "35" : t.border}`,
+                              background: checked ? evt.color + "08" : "transparent",
                               cursor: "pointer",
                               transition: "all 0.15s",
                               textAlign: "left",
@@ -388,9 +390,9 @@ export default function NotificationSettings({
                           >
                             <div
                               style={{
-                                width: 18,
-                                height: 18,
-                                borderRadius: 5,
+                                width: 16,
+                                height: 16,
+                                borderRadius: 4,
                                 border: `2px solid ${checked ? evt.color : t.border}`,
                                 background: checked ? evt.color : "transparent",
                                 display: "flex",
@@ -401,13 +403,13 @@ export default function NotificationSettings({
                               }}
                             >
                               {checked && (
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                                   <polyline points="20 6 9 17 4 12" />
                                 </svg>
                               )}
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: 13, fontWeight: 500, color: t.text }}>
+                              <div style={{ fontSize: 12, fontWeight: 500, color: t.text }}>
                                 {evt.label}
                               </div>
                               <div style={{ fontSize: 11, color: t.textMuted, marginTop: 1 }}>
@@ -416,8 +418,8 @@ export default function NotificationSettings({
                             </div>
                             <div
                               style={{
-                                width: 8,
-                                height: 8,
+                                width: 7,
+                                height: 7,
                                 borderRadius: "50%",
                                 background: evt.color,
                                 flexShrink: 0,
@@ -443,8 +445,8 @@ export default function NotificationSettings({
                       alignSelf: "flex-start",
                       background: "transparent",
                       border: `1px solid ${t.border}`,
-                      borderRadius: 8,
-                      padding: "7px 14px",
+                      borderRadius: 6,
+                      padding: "6px 14px",
                       fontSize: 12,
                       fontWeight: 500,
                       color: t.textSecondary,
@@ -457,8 +459,8 @@ export default function NotificationSettings({
                     }}
                   >
                     <svg
-                      width="13"
-                      height="13"
+                      width="12"
+                      height="12"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -489,7 +491,7 @@ export default function NotificationSettings({
             display: "flex",
             justifyContent: "flex-end",
             gap: 8,
-            padding: "12px 20px",
+            padding: "12px 18px",
             borderTop: `1px solid ${t.divider}`,
           }}
         >
@@ -498,8 +500,8 @@ export default function NotificationSettings({
             style={{
               background: "transparent",
               border: `1px solid ${t.border}`,
-              borderRadius: 8,
-              padding: "8px 18px",
+              borderRadius: 6,
+              padding: "7px 16px",
               fontSize: 13,
               fontWeight: 500,
               color: t.textSecondary,
@@ -515,8 +517,8 @@ export default function NotificationSettings({
             style={{
               background: t.accentPrimary,
               border: "none",
-              borderRadius: 8,
-              padding: "8px 18px",
+              borderRadius: 6,
+              padding: "7px 16px",
               fontSize: 13,
               fontWeight: 600,
               color: "#fff",
@@ -549,9 +551,9 @@ function ToggleSwitch({
       aria-checked={enabled}
       onClick={() => !disabled && onChange(!enabled)}
       style={{
-        width: 40,
-        height: 22,
-        borderRadius: 11,
+        width: 34,
+        height: 18,
+        borderRadius: 9,
         border: "none",
         background: enabled ? t.accentGreen : t.border,
         cursor: disabled ? "not-allowed" : "pointer",
@@ -566,9 +568,9 @@ function ToggleSwitch({
         style={{
           position: "absolute",
           top: 2,
-          left: enabled ? 20 : 2,
-          width: 18,
-          height: 18,
+          left: enabled ? 18 : 2,
+          width: 14,
+          height: 14,
           borderRadius: "50%",
           background: "#fff",
           transition: "left 0.2s",

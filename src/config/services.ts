@@ -4,7 +4,7 @@ export interface ServiceConfig {
   category: string;
   statusPageUrl: string;
   apiEndpoint: string;
-  sourceType: "STATUSPAGE_API" | "RSS_FEED" | "JSON_FEED";
+  sourceType: "STATUSPAGE_API" | "AWS_HEALTH" | "GCP_STATUS" | "AZURE_HTML";
   logoUrl?: string;
 }
 
@@ -26,7 +26,7 @@ export const services: ServiceConfig[] = [
     statusPageUrl: "https://status.gitlab.com",
     apiEndpoint: "https://status.gitlab.com/api/v2/summary.json",
     sourceType: "STATUSPAGE_API",
-    logoUrl: "https://about.gitlab.com/nuxt-images/ico/favicon.ico",
+    logoUrl: "https://gitlab.com/favicon.ico",
   },
   {
     name: "Bitbucket",
@@ -35,7 +35,7 @@ export const services: ServiceConfig[] = [
     statusPageUrl: "https://bitbucket.status.atlassian.com",
     apiEndpoint: "https://bitbucket.status.atlassian.com/api/v2/summary.json",
     sourceType: "STATUSPAGE_API",
-    logoUrl: "https://wac-cdn.atlassian.com/assets/img/favicons/bitbucket/favicon.png",
+    logoUrl: "https://bitbucket.org/favicon.ico",
   },
   {
     name: "CircleCI",
@@ -82,6 +82,7 @@ export const services: ServiceConfig[] = [
     statusPageUrl: "https://status.render.com",
     apiEndpoint: "https://status.render.com/api/v2/summary.json",
     sourceType: "STATUSPAGE_API",
+    logoUrl: "https://render.com/icon.svg",
   },
   {
     name: "Railway",
@@ -90,6 +91,7 @@ export const services: ServiceConfig[] = [
     statusPageUrl: "https://status.railway.app",
     apiEndpoint: "https://status.railway.app/api/v2/summary.json",
     sourceType: "STATUSPAGE_API",
+    logoUrl: "https://railway.app/favicon.ico",
   },
   {
     name: "DigitalOcean",
@@ -98,6 +100,7 @@ export const services: ServiceConfig[] = [
     statusPageUrl: "https://status.digitalocean.com",
     apiEndpoint: "https://status.digitalocean.com/api/v2/summary.json",
     sourceType: "STATUSPAGE_API",
+    logoUrl: "https://www.digitalocean.com/_next/static/media/favicon-32x32.b7ef9ede.png",
   },
 
   // --- Cloud Providers (Custom) ---
@@ -106,8 +109,8 @@ export const services: ServiceConfig[] = [
     slug: "aws",
     category: "Cloud Providers",
     statusPageUrl: "https://status.aws.amazon.com",
-    apiEndpoint: "https://status.aws.amazon.com/rss/ec2-us-east-1.rss",
-    sourceType: "RSS_FEED",
+    apiEndpoint: "https://health.aws.amazon.com/public/currentevents",
+    sourceType: "AWS_HEALTH",
     logoUrl: "https://a0.awsstatic.com/libra-css/images/site/fav/favicon.ico",
   },
   {
@@ -116,16 +119,16 @@ export const services: ServiceConfig[] = [
     category: "Cloud Providers",
     statusPageUrl: "https://status.cloud.google.com",
     apiEndpoint: "https://status.cloud.google.com/incidents.json",
-    sourceType: "JSON_FEED",
-    logoUrl: "https://www.gstatic.com/devrel-devsite/prod/v0e0f589edd85502a40d78d7d0825db8ea5ef3b99ab4070381ee86977c9168730/cloud/images/favicons/onecloud/favicon.ico",
+    sourceType: "GCP_STATUS",
+    logoUrl: "https://cloud.google.com/favicon.ico",
   },
   {
     name: "Microsoft Azure",
     slug: "azure",
     category: "Cloud Providers",
     statusPageUrl: "https://azure.status.microsoft",
-    apiEndpoint: "https://azure.status.microsoft/en-us/status/feed/",
-    sourceType: "RSS_FEED",
+    apiEndpoint: "https://azure.status.microsoft/en-us/status",
+    sourceType: "AZURE_HTML",
     logoUrl: "https://azure.microsoft.com/favicon.ico",
   },
 
@@ -155,6 +158,7 @@ export const services: ServiceConfig[] = [
     statusPageUrl: "https://www.planetscalestatus.com",
     apiEndpoint: "https://www.planetscalestatus.com/api/v2/summary.json",
     sourceType: "STATUSPAGE_API",
+    logoUrl: "https://planetscale.com/favicon.ico",
   },
 
   // --- Payments ---
@@ -165,7 +169,7 @@ export const services: ServiceConfig[] = [
     statusPageUrl: "https://status.stripe.com",
     apiEndpoint: "https://status.stripe.com/api/v2/summary.json",
     sourceType: "STATUSPAGE_API",
-    logoUrl: "https://images.stripeassets.com/fzn2n1nzq965/htTOlLECR6GqQmQhVsfEY/0e13e8c56e3998e1837498e84a08648f/favicon.png",
+    logoUrl: "https://stripe.com/favicon.ico",
   },
   {
     name: "Shopify",
@@ -185,6 +189,7 @@ export const services: ServiceConfig[] = [
     statusPageUrl: "https://status.twilio.com",
     apiEndpoint: "https://status.twilio.com/api/v2/summary.json",
     sourceType: "STATUSPAGE_API",
+    logoUrl: "https://www.twilio.com/favicon.ico",
   },
   {
     name: "SendGrid",
@@ -193,6 +198,7 @@ export const services: ServiceConfig[] = [
     statusPageUrl: "https://status.sendgrid.com",
     apiEndpoint: "https://status.sendgrid.com/api/v2/summary.json",
     sourceType: "STATUSPAGE_API",
+    logoUrl: "https://sendgrid.com/favicon.ico",
   },
   {
     name: "Mailgun",
@@ -201,6 +207,7 @@ export const services: ServiceConfig[] = [
     statusPageUrl: "https://status.mailgun.com",
     apiEndpoint: "https://status.mailgun.com/api/v2/summary.json",
     sourceType: "STATUSPAGE_API",
+    logoUrl: "https://www.mailgun.com/favicon.ico",
   },
 
   // --- Productivity ---
@@ -220,6 +227,7 @@ export const services: ServiceConfig[] = [
     statusPageUrl: "https://status.zoom.us",
     apiEndpoint: "https://status.zoom.us/api/v2/summary.json",
     sourceType: "STATUSPAGE_API",
+    logoUrl: "https://zoom.us/favicon.ico",
   },
   {
     name: "Figma",
@@ -246,6 +254,7 @@ export const services: ServiceConfig[] = [
     statusPageUrl: "https://jira-software.status.atlassian.com",
     apiEndpoint: "https://jira-software.status.atlassian.com/api/v2/summary.json",
     sourceType: "STATUSPAGE_API",
+    logoUrl: "https://jira.atlassian.com/favicon.ico",
   },
   {
     name: "Confluence",
@@ -254,6 +263,7 @@ export const services: ServiceConfig[] = [
     statusPageUrl: "https://confluence.status.atlassian.com",
     apiEndpoint: "https://confluence.status.atlassian.com/api/v2/summary.json",
     sourceType: "STATUSPAGE_API",
+    logoUrl: "https://confluence.atlassian.com/favicon.ico",
   },
 
   // --- CDN & Performance ---
@@ -273,6 +283,7 @@ export const services: ServiceConfig[] = [
     statusPageUrl: "https://status.cloudinary.com",
     apiEndpoint: "https://status.cloudinary.com/api/v2/summary.json",
     sourceType: "STATUSPAGE_API",
+    logoUrl: "https://cloudinary.com/favicon.ico",
   },
   {
     name: "Imgix",
@@ -281,6 +292,7 @@ export const services: ServiceConfig[] = [
     statusPageUrl: "https://status.imgix.com",
     apiEndpoint: "https://status.imgix.com/api/v2/summary.json",
     sourceType: "STATUSPAGE_API",
+    logoUrl: "https://imgix.com/favicon.ico",
   },
 
   // --- Monitoring ---
@@ -291,7 +303,7 @@ export const services: ServiceConfig[] = [
     statusPageUrl: "https://status.datadoghq.com",
     apiEndpoint: "https://status.datadoghq.com/api/v2/summary.json",
     sourceType: "STATUSPAGE_API",
-    logoUrl: "https://imgix.datadoghq.com/img/favicons/datadog_favicon-32x32.png",
+    logoUrl: "https://www.datadoghq.com/favicon.ico",
   },
   {
     name: "New Relic",
@@ -300,6 +312,7 @@ export const services: ServiceConfig[] = [
     statusPageUrl: "https://status.newrelic.com",
     apiEndpoint: "https://status.newrelic.com/api/v2/summary.json",
     sourceType: "STATUSPAGE_API",
+    logoUrl: "https://newrelic.com/favicon.ico",
   },
   {
     name: "Sentry",
@@ -308,7 +321,7 @@ export const services: ServiceConfig[] = [
     statusPageUrl: "https://status.sentry.io",
     apiEndpoint: "https://status.sentry.io/api/v2/summary.json",
     sourceType: "STATUSPAGE_API",
-    logoUrl: "https://sentry.io/favicon.ico",
+    logoUrl: "https://www.google.com/s2/favicons?domain=sentry.io&sz=64",
   },
   {
     name: "PagerDuty",
@@ -328,6 +341,7 @@ export const services: ServiceConfig[] = [
     statusPageUrl: "https://status.auth0.com",
     apiEndpoint: "https://status.auth0.com/api/v2/summary.json",
     sourceType: "STATUSPAGE_API",
+    logoUrl: "https://cdn2.auth0.com/styleguide/latest/lib/logos/img/favicon.png",
   },
   {
     name: "Okta",
@@ -336,6 +350,7 @@ export const services: ServiceConfig[] = [
     statusPageUrl: "https://status.okta.com",
     apiEndpoint: "https://status.okta.com/api/v2/summary.json",
     sourceType: "STATUSPAGE_API",
+    logoUrl: "https://www.okta.com/favicon.ico",
   },
 
   // --- AI & ML ---
@@ -346,7 +361,7 @@ export const services: ServiceConfig[] = [
     statusPageUrl: "https://status.openai.com",
     apiEndpoint: "https://status.openai.com/api/v2/summary.json",
     sourceType: "STATUSPAGE_API",
-    logoUrl: "https://openai.com/favicon.ico",
+    logoUrl: "https://www.google.com/s2/favicons?domain=openai.com&sz=64",
   },
   {
     name: "Anthropic",
@@ -355,7 +370,7 @@ export const services: ServiceConfig[] = [
     statusPageUrl: "https://status.anthropic.com",
     apiEndpoint: "https://status.anthropic.com/api/v2/summary.json",
     sourceType: "STATUSPAGE_API",
-    logoUrl: "https://anthropic.com/favicon.ico",
+    logoUrl: "https://www.google.com/s2/favicons?domain=anthropic.com&sz=64",
   },
 
   // --- Developer Tools ---
@@ -366,7 +381,7 @@ export const services: ServiceConfig[] = [
     statusPageUrl: "https://status.postman.com",
     apiEndpoint: "https://status.postman.com/api/v2/summary.json",
     sourceType: "STATUSPAGE_API",
-    logoUrl: "https://www.postman.com/favicon-32x32.png",
+    logoUrl: "https://www.postman.com/_mk-www-next/icons/favicon-32x32.png",
   },
   {
     name: "npm",
@@ -393,6 +408,7 @@ export const services: ServiceConfig[] = [
     statusPageUrl: "https://status.hashicorp.com",
     apiEndpoint: "https://status.hashicorp.com/api/v2/summary.json",
     sourceType: "STATUSPAGE_API",
+    logoUrl: "https://www.google.com/s2/favicons?domain=hashicorp.com&sz=64",
   },
   {
     name: "Linear",
@@ -421,6 +437,7 @@ export const services: ServiceConfig[] = [
     statusPageUrl: "https://status.launchdarkly.com",
     apiEndpoint: "https://status.launchdarkly.com/api/v2/summary.json",
     sourceType: "STATUSPAGE_API",
+    logoUrl: "https://www.google.com/s2/favicons?domain=launchdarkly.com&sz=64",
   },
 
   // --- Support & CRM ---
@@ -431,6 +448,7 @@ export const services: ServiceConfig[] = [
     statusPageUrl: "https://status.intercom.com",
     apiEndpoint: "https://status.intercom.com/api/v2/summary.json",
     sourceType: "STATUSPAGE_API",
+    logoUrl: "https://www.intercom.com/intercom-marketing-site/favicons/favicon.ico",
   },
   {
     name: "Zendesk",
@@ -439,6 +457,7 @@ export const services: ServiceConfig[] = [
     statusPageUrl: "https://status.zendesk.com",
     apiEndpoint: "https://status.zendesk.com/api/v2/summary.json",
     sourceType: "STATUSPAGE_API",
+    logoUrl: "https://d1eipm3vz40hy0.cloudfront.net/images/logos/zendesk-favicon.ico",
   },
   {
     name: "HubSpot",
@@ -447,6 +466,7 @@ export const services: ServiceConfig[] = [
     statusPageUrl: "https://status.hubspot.com",
     apiEndpoint: "https://status.hubspot.com/api/v2/summary.json",
     sourceType: "STATUSPAGE_API",
+    logoUrl: "https://www.hubspot.com/favicon.ico",
   },
 ];
 

@@ -59,6 +59,7 @@ interface ServiceDetailViewProps {
   onBack: () => void;
   isInStack: boolean;
   onToggleStack: () => void;
+  hideStackAction?: boolean;
   t: Theme;
 }
 
@@ -195,6 +196,7 @@ export default function ServiceDetailView({
   onBack,
   isInStack,
   onToggleStack,
+  hideStackAction,
   t,
 }: ServiceDetailViewProps) {
   const [detail, setDetail] = useState<ServiceDetailData | null>(null);
@@ -335,9 +337,9 @@ export default function ServiceDetailView({
         className="sh-banner"
         style={{
           background: t.surface,
-          borderRadius: 16,
+          borderRadius: 10,
           border: `1px solid ${t.border}`,
-          padding: "28px 28px 24px",
+          padding: "24px 24px 20px",
           marginBottom: 20,
           position: "relative",
           overflow: "hidden",
@@ -549,36 +551,38 @@ export default function ServiceDetailView({
           </button>
 
           {/* Stack button */}
-          <button
-            onClick={onToggleStack}
-            style={{
-              background: isInStack ? t.stackBtnBg : "transparent",
-              color: isInStack ? t.accentPrimary : t.textMuted,
-              border: `1px solid ${isInStack ? t.stackBtnBorder : t.border}`,
-              borderRadius: 10,
-              padding: "9px 18px",
-              cursor: "pointer",
-              fontSize: 13,
-              fontWeight: 600,
-              fontFamily: "var(--font-sans)",
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              transition: "all 0.15s",
-            }}
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill={isInStack ? t.accentPrimary : "none"}
-              stroke={isInStack ? t.accentPrimary : "currentColor"}
-              strokeWidth="2"
+          {!hideStackAction && (
+            <button
+              onClick={onToggleStack}
+              style={{
+                background: isInStack ? t.stackBtnBg : "transparent",
+                color: isInStack ? t.accentPrimary : t.textMuted,
+                border: `1px solid ${isInStack ? t.stackBtnBorder : t.border}`,
+                borderRadius: 10,
+                padding: "9px 18px",
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: 600,
+                fontFamily: "var(--font-sans)",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                transition: "all 0.15s",
+              }}
             >
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-            </svg>
-            {isInStack ? "In My Stack" : "Add to Stack"}
-          </button>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill={isInStack ? t.accentPrimary : "none"}
+                stroke={isInStack ? t.accentPrimary : "currentColor"}
+                strokeWidth="2"
+              >
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+              </svg>
+              {isInStack ? "In My Stack" : "Add to Stack"}
+            </button>
+          )}
           </div>
         </div>
       </div>
@@ -591,7 +595,7 @@ export default function ServiceDetailView({
               key={i}
               style={{
                 background: t.surface,
-                borderRadius: 14,
+                borderRadius: 10,
                 border: `1px solid ${t.border}`,
                 padding: "24px 24px",
                 opacity: 0.6 - i * 0.15,
@@ -648,12 +652,10 @@ export default function ServiceDetailView({
             className="sh-detail-tabs"
             style={{
               display: "flex",
-              gap: 4,
+              gap: 0,
               marginBottom: 16,
-              background: t.surface,
-              borderRadius: 12,
-              border: `1px solid ${t.border}`,
-              padding: 4,
+              borderBottom: `1px solid ${t.border}`,
+              padding: 0,
             }}
           >
             <button
@@ -661,14 +663,14 @@ export default function ServiceDetailView({
               style={{
                 flex: 1,
                 padding: "10px 16px",
-                borderRadius: 9,
-                border: activeTab === "components" ? `1px solid ${t.pillActiveBorder}` : "1px solid transparent",
+                borderRadius: 0,
+                border: "none",
+                borderBottom: activeTab === "components" ? `2px solid ${t.accentPrimary}` : "2px solid transparent",
                 cursor: "pointer",
                 fontSize: 13,
                 fontWeight: 600,
                 fontFamily: "var(--font-sans)",
-                background:
-                  activeTab === "components" ? t.pillActiveBg : "transparent",
+                background: "transparent",
                 color:
                   activeTab === "components" ? t.text : t.textMuted,
                 display: "flex",
@@ -715,14 +717,14 @@ export default function ServiceDetailView({
               style={{
                 flex: 1,
                 padding: "10px 16px",
-                borderRadius: 9,
-                border: activeTab === "incidents" ? `1px solid ${t.pillActiveBorder}` : "1px solid transparent",
+                borderRadius: 0,
+                border: "none",
+                borderBottom: activeTab === "incidents" ? `2px solid ${t.accentPrimary}` : "2px solid transparent",
                 cursor: "pointer",
                 fontSize: 13,
                 fontWeight: 600,
                 fontFamily: "var(--font-sans)",
-                background:
-                  activeTab === "incidents" ? t.pillActiveBg : "transparent",
+                background: "transparent",
                 color:
                   activeTab === "incidents" ? t.text : t.textMuted,
                 display: "flex",
@@ -792,7 +794,7 @@ export default function ServiceDetailView({
                 <div
                   style={{
                     background: `${(IMPACT_DISPLAY[trulyActiveIncidents[0]?.impact] || IMPACT_DISPLAY.NONE).color}08`,
-                    borderRadius: 14,
+                    borderRadius: 10,
                     border: `1px solid ${(IMPACT_DISPLAY[trulyActiveIncidents[0]?.impact] || IMPACT_DISPLAY.NONE).color}20`,
                     padding: "16px 20px",
                     marginBottom: 12,
@@ -897,7 +899,7 @@ export default function ServiceDetailView({
                 <div
                   style={{
                     background: `${MONITORING_DISPLAY.color}08`,
-                    borderRadius: 14,
+                    borderRadius: 10,
                     border: `1px solid ${MONITORING_DISPLAY.color}20`,
                     padding: "16px 20px",
                     marginBottom: 12,
@@ -1001,7 +1003,7 @@ export default function ServiceDetailView({
                     <div
                       style={{
                         background: t.surface,
-                        borderRadius: 14,
+                        borderRadius: 10,
                         border: `1px solid ${t.border}`,
                         padding: "18px 22px",
                         marginBottom: 12,
@@ -1129,7 +1131,7 @@ export default function ServiceDetailView({
                       <div
                         style={{
                           background: t.surface,
-                          borderRadius: 14,
+                          borderRadius: 10,
                           border: `1px solid ${t.border}`,
                           overflow: "hidden",
                         }}
@@ -1148,7 +1150,7 @@ export default function ServiceDetailView({
                                 padding: "14px 22px",
                                 borderBottom:
                                   i < affectedComponents.length - 1
-                                    ? `1px solid ${t.divider}`
+                                    ? `1px solid ${t.borderSubtle}`
                                     : "none",
                                 gap: 12,
                                 background: cc.color + "06",
@@ -1230,7 +1232,7 @@ export default function ServiceDetailView({
                     <div
                       style={{
                         background: t.surface,
-                        borderRadius: 14,
+                        borderRadius: 10,
                         border: `1px solid ${t.border}`,
                         overflow: "hidden",
                       }}
@@ -1256,7 +1258,7 @@ export default function ServiceDetailView({
                           gap: 14,
                           borderBottom:
                             showAllOperational || affectedComponents.length === 0
-                              ? `1px solid ${t.divider}`
+                              ? `1px solid ${t.borderSubtle}`
                               : "none",
                         }}
                       >
@@ -1391,7 +1393,7 @@ export default function ServiceDetailView({
                               padding: "12px 22px",
                               borderBottom:
                                 i < operationalComponents.length - 1
-                                  ? `1px solid ${t.divider}`
+                                  ? `1px solid ${t.borderSubtle}`
                                   : "none",
                               gap: 12,
                             }}
@@ -1465,7 +1467,7 @@ export default function ServiceDetailView({
                 <div
                   style={{
                     background: t.surface,
-                    borderRadius: 14,
+                    borderRadius: 10,
                     border: `1px solid ${t.border}`,
                     padding: "48px 24px",
                     textAlign: "center",
@@ -1547,7 +1549,7 @@ export default function ServiceDetailView({
                           key={inc.id}
                           style={{
                             background: t.surface,
-                            borderRadius: 14,
+                            borderRadius: 10,
                             border: `1px solid ${ic.color}20`,
                             overflow: "hidden",
                           }}
@@ -1751,7 +1753,7 @@ export default function ServiceDetailView({
                                             style={{
                                               width: 1.5,
                                               flex: 1,
-                                              background: t.divider,
+                                              background: t.borderSubtle,
                                               minHeight: 16,
                                             }}
                                           />
@@ -1911,7 +1913,7 @@ export default function ServiceDetailView({
                           key={inc.id}
                           style={{
                             background: t.surface,
-                            borderRadius: 14,
+                            borderRadius: 10,
                             border: `1px solid ${MONITORING_DISPLAY.color}20`,
                             overflow: "hidden",
                           }}
@@ -2114,7 +2116,7 @@ export default function ServiceDetailView({
                                             style={{
                                               width: 1.5,
                                               flex: 1,
-                                              background: t.divider,
+                                              background: t.borderSubtle,
                                               minHeight: 16,
                                             }}
                                           />
@@ -2244,7 +2246,7 @@ export default function ServiceDetailView({
                   <div
                     style={{
                       background: t.surface,
-                      borderRadius: 14,
+                      borderRadius: 10,
                       border: `1px solid ${t.border}`,
                       overflow: "hidden",
                     }}
@@ -2431,7 +2433,7 @@ export default function ServiceDetailView({
                                             style={{
                                               width: 1.5,
                                               flex: 1,
-                                              background: t.divider,
+                                              background: t.borderSubtle,
                                               minHeight: 16,
                                             }}
                                           />
@@ -2505,7 +2507,7 @@ export default function ServiceDetailView({
                   <div
                     style={{
                       background: t.surface,
-                      borderRadius: 14,
+                      borderRadius: 10,
                       border: `1px solid ${t.border}`,
                       padding: "48px 24px",
                       textAlign: "center",
@@ -2515,7 +2517,7 @@ export default function ServiceDetailView({
                       style={{
                         width: 48,
                         height: 48,
-                        borderRadius: 14,
+                        borderRadius: 10,
                         background: t.accentGreen + "10",
                         display: "flex",
                         alignItems: "center",

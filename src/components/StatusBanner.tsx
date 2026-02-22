@@ -33,8 +33,8 @@ export default function StatusBanner({
       className="sh-banner"
       style={{
         background: issues > 0 ? t.bannerIssueBg : t.bannerOkBg,
-        borderRadius: 16,
-        padding: "22px 26px",
+        borderRadius: 10,
+        padding: "20px 24px",
         marginBottom: 24,
         border: `1px solid ${issues > 0 ? t.bannerIssueBorder : t.bannerOkBorder}`,
         position: "relative",
@@ -42,20 +42,6 @@ export default function StatusBanner({
         transition: "all 0.3s ease",
       }}
     >
-      <div
-        style={{
-          position: "absolute",
-          top: -50,
-          right: -50,
-          width: 140,
-          height: 140,
-          borderRadius: "50%",
-          background:
-            issues > 0
-              ? `rgba(239,68,68,${t.bannerCircle})`
-              : `rgba(22,163,74,${t.bannerCircle})`,
-        }}
-      />
       <div
         style={{
           display: "flex",
@@ -68,24 +54,23 @@ export default function StatusBanner({
         <div
           className="sh-banner-icon"
           style={{
-            width: 44,
-            height: 44,
-            borderRadius: 12,
+            width: 40,
+            height: 40,
+            borderRadius: 10,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             background:
               issues > 0
-                ? "rgba(239,68,68,0.10)"
-                : "rgba(22,163,74,0.10)",
-            fontSize: 22,
+                ? "#ef444410"
+                : "#16a34a10",
             flexShrink: 0,
           }}
         >
           {issues > 0 ? (
             <svg
-              width="22"
-              height="22"
+              width="20"
+              height="20"
               viewBox="0 0 24 24"
               fill="none"
               stroke="#ef4444"
@@ -99,8 +84,8 @@ export default function StatusBanner({
             </svg>
           ) : (
             <svg
-              width="22"
-              height="22"
+              width="20"
+              height="20"
               viewBox="0 0 24 24"
               fill="none"
               stroke="#16a34a"
@@ -116,10 +101,10 @@ export default function StatusBanner({
           <div
             className="sh-banner-title"
             style={{
-              fontWeight: 700,
-              fontSize: 17,
+              fontWeight: 600,
+              fontSize: 15,
               color: t.text,
-              letterSpacing: -0.3,
+              letterSpacing: -0.2,
               fontFamily: "var(--font-sans)",
             }}
           >
@@ -130,7 +115,7 @@ export default function StatusBanner({
           <div
             className="sh-banner-subtitle"
             style={{
-              fontSize: 13,
+              fontSize: 12,
               color: t.textMuted,
               marginTop: 3,
               fontFamily: "var(--font-sans)",
@@ -178,10 +163,10 @@ export default function StatusBanner({
                   key={s.slug}
                   onClick={() => onSelectService(s.slug)}
                   style={{
-                    background: sc.color + "12",
-                    border: `1px solid ${sc.color}25`,
-                    borderRadius: 8,
-                    padding: "5px 10px",
+                    background: sc.color + "10",
+                    border: `1px solid ${sc.color}20`,
+                    borderRadius: 6,
+                    padding: "4px 10px",
                     cursor: "pointer",
                     display: "flex",
                     alignItems: "center",
@@ -190,6 +175,7 @@ export default function StatusBanner({
                     fontSize: 12,
                     fontWeight: 600,
                     fontFamily: "var(--font-sans)",
+                    transition: "all 0.15s",
                   }}
                 >
                   <span

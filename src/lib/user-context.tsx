@@ -60,9 +60,11 @@ interface UserContextValue {
     theme: ThemeKey;
     compact: boolean;
     myStack: string[];
+    sort: "status" | "name" | "category";
   };
   setTheme: (theme: ThemeKey) => void;
   setCompact: (compact: boolean) => void;
+  setSort: (sort: "status" | "name" | "category") => void;
   toggleStack: (slug: string) => void;
   setMyStack: (stack: string[]) => void;
   notificationPrefs: NotificationPrefs;
@@ -100,6 +102,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   // Preferences state
   const [theme, setThemeState] = useState<ThemeKey>("dark");
   const [compact, setCompactState] = useState(false);
+  const [sort, setSortState] = useState<"status" | "name" | "category">("status");
   const [myStack, setMyStackState] = useState<string[]>([]);
 
   // Notification preferences state
@@ -122,6 +125,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
     }
     const savedCompact = localStorage.getItem("statushub_compact");
     if (savedCompact === "true") setCompactState(true);
+    const savedSort = localStorage.getItem("statushub_sort") as "status" | "name" | "category" | null;
+    if (savedSort && ["status", "name", "category"].includes(savedSort)) setSortState(savedSort);
 
     // Load notification prefs from localStorage
     const savedPush = localStorage.getItem("statushub_push_enabled");
@@ -343,6 +348,16 @@ export function UserProvider({ children }: { children: ReactNode }) {
     [savePreferences]
   );
 
+  const setSort = useCallback(
+    (s: "status" | "name" | "category") => {
+      setSortState(s);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("statushub_sort", s);
+      }
+    },
+    []
+  );
+
   const toggleStack = useCallback(
     (slug: string) => {
       setMyStackState((prev) => {
@@ -444,7 +459,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     });
     setUser(null);
     setSession(null);
-    window.location.href = "/";
+    window.location.href = "/dashboard";
   }, []);
 
   return (
@@ -457,9 +472,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
         signInWithGoogle,
         signInWithGitHub,
         signOut: signOutFn,
-        preferences: { theme, compact, myStack },
+        preferences: { theme, compact, myStack, sort },
         setTheme,
         setCompact,
+        setSort,
         toggleStack,
         setMyStack,
         notificationPrefs: {

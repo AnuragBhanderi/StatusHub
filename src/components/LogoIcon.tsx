@@ -42,7 +42,8 @@ export default function LogoIcon({
     );
   }
 
-  // On light theme, add a subtle drop-shadow so white/light logos remain visible
+  // On light theme, add a dark drop-shadow so white/light logos remain visible
+  // On dark themes, add a light drop-shadow so dark logos remain visible
   const isLight = t.name === "Light";
 
   return (
@@ -70,7 +71,7 @@ export default function LogoIcon({
           objectFit: "contain",
           filter: isLight
             ? "drop-shadow(0 0 0.5px rgba(0,0,0,0.4)) drop-shadow(0 0 1px rgba(0,0,0,0.2))"
-            : undefined,
+            : "drop-shadow(0 0 0.5px rgba(255,255,255,0.5)) drop-shadow(0 0 1px rgba(255,255,255,0.3))",
         }}
         onError={() => setErr(true)}
       />

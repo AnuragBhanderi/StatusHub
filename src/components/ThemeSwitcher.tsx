@@ -24,8 +24,8 @@ function ThemeIcon({
   if (themeKey === "light") {
     return (
       <svg
-        width="16"
-        height="16"
+        width="15"
+        height="15"
         viewBox="0 0 24 24"
         fill="none"
         stroke={color}
@@ -49,8 +49,8 @@ function ThemeIcon({
   if (themeKey === "midnight") {
     return (
       <svg
-        width="16"
-        height="16"
+        width="15"
+        height="15"
         viewBox="0 0 24 24"
         fill="none"
         stroke={color}
@@ -66,8 +66,8 @@ function ThemeIcon({
   // dark (moon)
   return (
     <svg
-      width="16"
-      height="16"
+      width="15"
+      height="15"
       viewBox="0 0 24 24"
       fill="none"
       stroke={color}
@@ -112,13 +112,13 @@ export default function ThemeSwitcher({
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 8,
-          padding: "7px 12px",
-          borderRadius: 10,
+          gap: 7,
+          padding: "6px 10px",
+          borderRadius: 8,
           border: `1px solid ${t.border}`,
           background: t.surface,
           cursor: "pointer",
-          transition: "all 0.2s ease",
+          transition: "all 0.15s ease",
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.borderColor = t.borderHover;
@@ -162,6 +162,7 @@ export default function ThemeSwitcher({
       {/* Dropdown */}
       {open && (
         <div
+          className="animate-scale-in"
           style={{
             position: "absolute",
             top: "calc(100% + 6px)",
@@ -169,11 +170,10 @@ export default function ThemeSwitcher({
             minWidth: 180,
             background: t.surface,
             border: `1px solid ${t.border}`,
-            borderRadius: 12,
-            boxShadow: t.cardShadow,
+            borderRadius: 10,
+            boxShadow: t.shadowLg,
             padding: 4,
             zIndex: 200,
-            animation: "fade-in 0.15s ease",
           }}
         >
           {keys.map((k) => {
@@ -190,9 +190,9 @@ export default function ThemeSwitcher({
                   alignItems: "center",
                   gap: 10,
                   width: "100%",
-                  padding: "10px 12px",
+                  padding: "9px 10px",
                   border: "none",
-                  borderRadius: 8,
+                  borderRadius: 7,
                   cursor: "pointer",
                   background: isActive ? t.pillActiveBg : "transparent",
                   transition: "all 0.15s ease",
@@ -208,16 +208,16 @@ export default function ThemeSwitcher({
               >
                 <div
                   style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 8,
+                    width: 30,
+                    height: 30,
+                    borderRadius: 7,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     background: isActive
                       ? `${THEMES[k].accentPrimary}15`
                       : t.tagBg,
-                    border: `1px solid ${isActive ? `${THEMES[k].accentPrimary}30` : t.border}`,
+                    border: `1px solid ${isActive ? `${THEMES[k].accentPrimary}25` : t.border}`,
                     transition: "all 0.15s ease",
                   }}
                 >
@@ -251,8 +251,8 @@ export default function ThemeSwitcher({
                 </div>
                 {isActive && (
                   <svg
-                    width="14"
-                    height="14"
+                    width="13"
+                    height="13"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke={t.accentPrimary}
