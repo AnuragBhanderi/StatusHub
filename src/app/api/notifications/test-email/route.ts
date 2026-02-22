@@ -44,7 +44,7 @@ export async function POST() {
     await transporter.sendMail({
       from: process.env.SMTP_FROM || "StatusHub <alerts@statushub.dev>",
       to: emailAddress,
-      subject: `[TEST] ${subject}`,
+      subject: `Test \u2014 ${subject}`,
       html,
       text,
       headers: {

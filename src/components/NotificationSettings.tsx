@@ -4,6 +4,28 @@ import { useState } from "react";
 import type { Theme } from "@/config/themes";
 import { useToast } from "@/components/Toast";
 
+const EVENT_TYPES = [
+  { key: "major_outage", label: "Major outages", desc: "Complete service failures", color: "#ef4444" },
+  { key: "partial_outage", label: "Partial outages", desc: "Some features unavailable", color: "#ea580c" },
+  { key: "degraded", label: "Degraded performance", desc: "Slower than normal", color: "#ca8a04" },
+  { key: "maintenance", label: "Scheduled maintenance", desc: "Planned maintenance windows", color: "#448aff" },
+  { key: "recovery", label: "Service recoveries", desc: "When services come back online", color: "#16a34a" },
+] as const;
+
+// Parse legacy presets or new comma-separated format
+function parseThreshold(threshold: string): Set<string> {
+  switch (threshold) {
+    case "all":
+      return new Set(["degraded", "partial_outage", "major_outage", "maintenance", "recovery"]);
+    case "outages_only":
+      return new Set(["partial_outage", "major_outage", "recovery"]);
+    case "major_only":
+      return new Set(["major_outage", "recovery"]);
+    default:
+      return new Set(threshold.split(",").filter(Boolean));
+  }
+}
+
 interface NotificationSettingsProps {
   t: Theme;
   pushEnabled: boolean;
@@ -33,10 +55,24 @@ export default function NotificationSettings({
   const [push, setPush] = useState(pushEnabled);
   const [email, setEmail] = useState(emailEnabled);
   const [addr, setAddr] = useState(emailAddress || userEmail || "");
-  const [threshold, setThreshold] = useState(severityThreshold || "all");
+  const [enabledEvents, setEnabledEvents] = useState<Set<string>>(
+    () => parseThreshold(severityThreshold || "all")
+  );
   const [testStatus, setTestStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [saving, setSaving] = useState(false);
   const { showToast } = useToast();
+
+  const toggleEvent = (key: string) => {
+    setEnabledEvents((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
 
   const pushPermission =
     typeof window !== "undefined" && "Notification" in window
@@ -49,7 +85,7 @@ export default function NotificationSettings({
       push_enabled: push,
       email_enabled: email,
       email_address: addr,
-      severity_threshold: threshold,
+      severity_threshold: Array.from(enabledEvents).join(","),
     });
     setSaving(false);
     showToast("Notification settings saved", "success");
@@ -316,7 +352,7 @@ export default function NotificationSettings({
                     />
                   </div>
 
-                  {/* Severity threshold */}
+                  {/* Event type toggles */}
                   <div>
                     <label
                       style={{
@@ -324,32 +360,79 @@ export default function NotificationSettings({
                         fontWeight: 600,
                         color: t.textMuted,
                         display: "block",
-                        marginBottom: 6,
+                        marginBottom: 8,
                       }}
                     >
-                      Alert threshold
+                      Notify me about
                     </label>
-                    <select
-                      value={threshold}
-                      onChange={(e) => setThreshold(e.target.value)}
-                      style={{
-                        width: "100%",
-                        padding: "8px 12px",
-                        borderRadius: 8,
-                        border: `1px solid ${t.border}`,
-                        background: t.searchBg,
-                        color: t.text,
-                        fontSize: 13,
-                        fontFamily: "var(--font-sans)",
-                        outline: "none",
-                        cursor: "pointer",
-                        boxSizing: "border-box",
-                      }}
-                    >
-                      <option value="all">All status changes</option>
-                      <option value="outages_only">Outages only</option>
-                      <option value="major_only">Major outages only</option>
-                    </select>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {EVENT_TYPES.map((evt) => {
+                        const checked = enabledEvents.has(evt.key);
+                        return (
+                          <button
+                            key={evt.key}
+                            type="button"
+                            onClick={() => toggleEvent(evt.key)}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 10,
+                              padding: "8px 10px",
+                              borderRadius: 8,
+                              border: `1px solid ${checked ? evt.color + "40" : t.border}`,
+                              background: checked ? evt.color + "0a" : "transparent",
+                              cursor: "pointer",
+                              transition: "all 0.15s",
+                              textAlign: "left",
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: 18,
+                                height: 18,
+                                borderRadius: 5,
+                                border: `2px solid ${checked ? evt.color : t.border}`,
+                                background: checked ? evt.color : "transparent",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                flexShrink: 0,
+                                transition: "all 0.15s",
+                              }}
+                            >
+                              {checked && (
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                              )}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 13, fontWeight: 500, color: t.text }}>
+                                {evt.label}
+                              </div>
+                              <div style={{ fontSize: 11, color: t.textMuted, marginTop: 1 }}>
+                                {evt.desc}
+                              </div>
+                            </div>
+                            <div
+                              style={{
+                                width: 8,
+                                height: 8,
+                                borderRadius: "50%",
+                                background: evt.color,
+                                flexShrink: 0,
+                                opacity: 0.7,
+                              }}
+                            />
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {enabledEvents.size === 0 && (
+                      <div style={{ fontSize: 11, color: "#ef4444", marginTop: 6, fontWeight: 500 }}>
+                        Select at least one event type to receive emails
+                      </div>
+                    )}
                   </div>
 
                   {/* Test email button */}
