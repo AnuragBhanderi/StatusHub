@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DM_Sans, Space_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import { UserProvider } from "@/lib/user-context";
 import "./globals.css";
 
@@ -45,6 +46,7 @@ export default function RootLayout({
         <UserProvider>
           {children}
         </UserProvider>
+        <Analytics />
       </body>
     </html>
   );
