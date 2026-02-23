@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { THEMES, type ThemeKey, type Theme } from "@/config/themes";
+import { THEMES } from "@/config/themes";
 import { CATEGORIES } from "@/config/services";
 import { STATUS_DISPLAY, MONITORING_DISPLAY } from "@/lib/normalizer";
 import { useUser } from "@/lib/user-context";
@@ -12,7 +12,6 @@ import CategoryPills from "@/components/CategoryPills";
 import ServiceCard from "@/components/ServiceCard";
 import ServiceDetailView from "@/components/ServiceDetailView";
 import UserMenu from "@/components/UserMenu";
-import NotificationBell from "@/components/NotificationBell";
 import ProjectSwitcher from "@/components/ProjectSwitcher";
 import ProjectManager from "@/components/ProjectManager";
 import UpgradeModal from "@/components/UpgradeModal";
@@ -86,20 +85,19 @@ function DashboardInner() {
     showUpgradeModal,
     setShowUpgradeModal,
     notificationPrefs,
-    setPushEnabled,
   } = useUser();
 
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [showMyStack, setShowMyStack] = useState(false);
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState("");
   const [services, setServices] = useState<ServiceData[]>([]);
   const [hasMounted, setHasMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [showSignIn, setShowSignIn] = useState(false);
   const [managingProject, setManagingProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
   const lastFetchTimeRef = useRef(Date.now());
   const [countdown, setCountdown] = useState(180);
@@ -151,7 +149,6 @@ function DashboardInner() {
         const data = await res.json();
         if (data.services && data.services.length > 0) {
           setServices(data.services);
-          setLastUpdated(new Date().toLocaleTimeString());
         } else {
           setError(true);
         }
@@ -284,15 +281,114 @@ function DashboardInner() {
               gap: 10,
             }}
           >
-            <ThemeSwitcher theme={theme} setTheme={setTheme} t={t} />
-            {isSignedIn && (
-              <NotificationBell
-                pushEnabled={notificationPrefs.pushEnabled}
-                onToggle={() => setPushEnabled(!notificationPrefs.pushEnabled)}
+            {/* Live indicator */}
+            {!loading && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <span
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    background: t.accentGreen,
+                    boxShadow: `0 0 8px ${t.accentGreen}80`,
+                    flexShrink: 0,
+                  }}
+                />
+                <span
+                  className="sh-live-text"
+                  style={{
+                    fontSize: 11,
+                    color: t.textMuted,
+                    fontFamily: "var(--font-mono)",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, "0")}
+                </span>
+              </div>
+            )}
+
+            {/* Project switcher */}
+            {!loading && isSignedIn && projects.length > 0 && (
+              <ProjectSwitcher
+                projects={projects}
+                activeProjectId={activeProjectId}
+                plan={plan}
+                onSelect={setActiveProject}
+                onUpgrade={() => setShowUpgradeModal(true)}
+                onCreateProject={async (name) => {
+                  const p = await createProject(name);
+                  if (p) {
+                    setActiveProject(p.id);
+                    showToast(`Created "${p.name}"`, "success");
+                  }
+                }}
+                onManageProject={() => setManagingProject(true)}
+                onShare={() => {
+                  const ap = projects.find((p) => p.id === activeProjectId) || projects[0];
+                  const url = `${window.location.origin}/dashboard?project=${ap?.slug || ""}`;
+                  navigator.clipboard.writeText(url).then(() => {
+                    showToast("Project link copied!", "success");
+                  });
+                }}
+                showProjectFilter={showMyStack}
+                onToggleFilter={() => setShowMyStack(!showMyStack)}
                 t={t}
               />
             )}
+
+            {/* Upgrade button for free plan */}
+            {isSignedIn && plan === "free" && (
+              <button
+                onClick={() => setShowUpgradeModal(true)}
+                style={{
+                  background: "transparent",
+                  border: `1px solid ${t.accentPrimary}40`,
+                  borderRadius: 8,
+                  padding: "5px 12px",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: t.accentPrimary,
+                  cursor: "pointer",
+                  fontFamily: "var(--font-sans)",
+                  transition: "all 0.15s",
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = `${t.accentPrimary}10`;
+                  e.currentTarget.style.borderColor = `${t.accentPrimary}70`;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "transparent";
+                  e.currentTarget.style.borderColor = `${t.accentPrimary}40`;
+                }}
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill={t.accentPrimary} stroke="none">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+                <span className="sh-upgrade-label">Upgrade to Pro</span>
+              </button>
+            )}
+
+            {/* User menu (includes theme switcher) for signed-in users */}
             {isSignedIn && <UserMenu t={t} />}
+
+            {/* Theme switcher for non-authenticated users */}
+            {!isSignedIn && !authLoading && (
+              <ThemeSwitcher theme={theme} setTheme={setTheme} t={t} />
+            )}
+
+            {/* Sign In button for non-authenticated */}
             {isSupabaseEnabled && !user && !authLoading && (
               <button
                 onClick={() => setShowSignIn(true)}
@@ -320,92 +416,6 @@ function DashboardInner() {
               >
                 Sign In
               </button>
-            )}
-            {!loading && (
-              <>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: "50%",
-                      background: t.accentGreen,
-                      boxShadow: `0 0 8px ${t.accentGreen}80`,
-                      flexShrink: 0,
-                    }}
-                  />
-                  <span
-                    className="sh-live-text"
-                    style={{
-                      fontSize: 11,
-                      color: t.textMuted,
-                      fontFamily: "var(--font-mono)",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Live{lastUpdated ? ` · ${lastUpdated}` : ""}{!loading && ` · ${Math.floor(countdown / 60)}:${String(countdown % 60).padStart(2, "0")}`}
-                  </span>
-                </div>
-                {isSignedIn && projects.length > 0 && (
-                  <ProjectSwitcher
-                    projects={projects}
-                    activeProjectId={activeProjectId}
-                    onSelect={setActiveProject}
-                    onNewProject={async () => {
-                      const name = prompt("Project name:");
-                      if (name?.trim()) {
-                        const p = await createProject(name.trim());
-                        if (p) {
-                          setActiveProject(p.id);
-                          showToast(`Created "${p.name}"`, "success");
-                        }
-                      }
-                    }}
-                    showProjectFilter={showMyStack}
-                    onToggleFilter={() => setShowMyStack(!showMyStack)}
-                    t={t}
-                  />
-                )}
-                {isSignedIn && showMyStack && activeProjectSlugs.length > 0 && (
-                  <button
-                    onClick={() => {
-                      const ap = projects.find((p) => p.id === activeProjectId) || projects[0];
-                      const url = `${window.location.origin}/dashboard?project=${ap?.slug || ""}`;
-                      navigator.clipboard.writeText(url).then(() => {
-                        showToast("Project link copied!", "success");
-                      });
-                    }}
-                    title="Share your project as a URL"
-                    aria-label="Share project"
-                    style={{
-                      background: "transparent",
-                      border: `1px solid ${t.border}`,
-                      borderRadius: 8,
-                      width: 32,
-                      height: 32,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      cursor: "pointer",
-                      color: t.textMuted,
-                      transition: "all 0.15s",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8" />
-                      <polyline points="16 6 12 2 8 6" />
-                      <line x1="12" y1="2" x2="12" y2="15" />
-                    </svg>
-                  </button>
-                )}
-              </>
             )}
           </div>
         }
@@ -454,6 +464,128 @@ function DashboardInner() {
               monitoringOnlyCount={monitoringOnlyCount}
               t={t}
             />
+
+            {/* Onboarding: create first project */}
+            {isSignedIn && projects.length === 0 && (
+              <div
+                className="animate-slide-up"
+                style={{
+                  margin: "20px 0",
+                  padding: "28px 24px",
+                  background: t.surface,
+                  border: `1px solid ${t.border}`,
+                  borderRadius: 14,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 16,
+                  textAlign: "center",
+                }}
+              >
+                <div style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 12,
+                  background: `linear-gradient(135deg, ${t.accentPrimary}20, ${t.accentSecondary}20)`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={t.accentPrimary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+                    <line x1="12" y1="11" x2="12" y2="17" />
+                    <line x1="9" y1="14" x2="15" y2="14" />
+                  </svg>
+                </div>
+                <div>
+                  <div style={{
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: t.text,
+                    marginBottom: 4,
+                  }}>
+                    Create your first project
+                  </div>
+                  <div style={{
+                    fontSize: 13,
+                    color: t.textMuted,
+                    maxWidth: 360,
+                    lineHeight: 1.5,
+                  }}>
+                    Projects let you group services you care about. Star services to add them to your project.
+                  </div>
+                </div>
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    const name = newProjectName.trim();
+                    if (!name) return;
+                    const p = await createProject(name);
+                    if (p) {
+                      setActiveProject(p.id);
+                      setNewProjectName("");
+                      showToast(`Created "${p.name}"`, "success");
+                    }
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    width: "100%",
+                    maxWidth: 380,
+                  }}
+                >
+                  <input
+                    type="text"
+                    value={newProjectName}
+                    onChange={(e) => setNewProjectName(e.target.value)}
+                    placeholder="e.g. Production Stack"
+                    maxLength={40}
+                    autoFocus
+                    style={{
+                      flex: 1,
+                      padding: "10px 14px",
+                      fontSize: 14,
+                      fontFamily: "var(--font-sans)",
+                      background: t.surfaceHover,
+                      border: `1px solid ${t.border}`,
+                      borderRadius: 10,
+                      color: t.text,
+                      outline: "none",
+                      transition: "border-color 0.15s",
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = t.accentPrimary;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = t.border;
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={!newProjectName.trim()}
+                    style={{
+                      padding: "10px 20px",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      fontFamily: "var(--font-sans)",
+                      background: newProjectName.trim()
+                        ? `linear-gradient(135deg, ${t.accentPrimary}, ${t.accentSecondary})`
+                        : t.tagBg,
+                      color: newProjectName.trim() ? "#fff" : t.textMuted,
+                      border: "none",
+                      borderRadius: 10,
+                      cursor: newProjectName.trim() ? "pointer" : "not-allowed",
+                      transition: "all 0.15s",
+                      whiteSpace: "nowrap",
+                      flexShrink: 0,
+                    }}
+                  >
+                    Create
+                  </button>
+                </form>
+              </div>
+            )}
 
             <SearchBar ref={searchRef} value={search} onChange={setSearch} t={t} />
 

@@ -14,7 +14,7 @@ export async function GET() {
   }
 
   // Fetch all in parallel
-  const [prefsResult, notifResult, projects, plan] = await Promise.all([
+  const [prefsResult, notifResult, projectsResult, plan] = await Promise.all([
     supabase
       .from("user_preferences")
       .select("*")
@@ -38,7 +38,7 @@ export async function GET() {
     user: { id: user.id, email: user.email },
     preferences: prefsResult.data || null,
     notificationPreferences: notifResult.data || null,
-    projects: projects.data || [],
+    projects: projectsResult.data || [],
     plan,
   });
 }

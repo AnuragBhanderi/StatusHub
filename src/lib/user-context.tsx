@@ -571,8 +571,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
           return false;
         }
 
+        const data = await res.json();
+        const updated = data.project;
         setProjects((prev) =>
-          prev.map((p) => (p.id === id ? { ...p, name } : p))
+          prev.map((p) => (p.id === id ? { ...p, name: updated.name, slug: updated.slug } : p))
         );
         return true;
       } catch {

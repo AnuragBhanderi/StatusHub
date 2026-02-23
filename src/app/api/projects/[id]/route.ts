@@ -7,6 +7,14 @@ export const dynamic = "force-dynamic";
 
 const validSlugs = new Set(serviceConfigs.map((s) => s.slug));
 
+function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 50) || "project";
+}
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -65,7 +73,23 @@ export async function PUT(
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
   if (body.name !== undefined) {
-    updates.name = String(body.name).trim().slice(0, 100);
+    const trimmedName = String(body.name).trim().slice(0, 100);
+    updates.name = trimmedName;
+
+    // Regenerate slug from new name
+    let newSlug = generateSlug(trimmedName);
+    const { data: slugConflict } = await supabase
+      .from("projects")
+      .select("slug")
+      .eq("user_id", user.id)
+      .eq("slug", newSlug)
+      .neq("id", id)
+      .single();
+
+    if (slugConflict) {
+      newSlug = `${newSlug}-${Date.now().toString(36).slice(-4)}`;
+    }
+    updates.slug = newSlug;
   }
 
   if (body.service_slugs !== undefined) {
