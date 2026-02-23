@@ -76,12 +76,17 @@ export async function processServiceEvents(
         .eq("email_enabled", true);
       allPrefs = (prefs || []) as typeof allPrefs;
 
-      const { data: userPrefs } = await adminClient
-        .from("user_preferences")
-        .select("user_id, my_stack");
-      stackMap = new Map(
-        (userPrefs || []).map((p: { user_id: string; my_stack: string[] }) => [p.user_id, new Set(p.my_stack)])
-      );
+      // Build stack map from projects table (union of all service_slugs across projects)
+      const { data: allProjects } = await adminClient
+        .from("projects")
+        .select("user_id, service_slugs");
+      stackMap = new Map<string, Set<string>>();
+      for (const p of allProjects || []) {
+        const proj = p as { user_id: string; service_slugs: string[] };
+        const existing = stackMap.get(proj.user_id) || new Set<string>();
+        for (const slug of proj.service_slugs || []) existing.add(slug);
+        stackMap.set(proj.user_id, existing);
+      }
     }
 
     const transporter = getTransporter();

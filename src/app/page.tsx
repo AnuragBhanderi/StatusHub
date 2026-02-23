@@ -886,7 +886,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── Feature Showcase: My Stack ─── */}
+      {/* ─── Feature Showcase: Projects ─── */}
       <section
         style={{
           maxWidth: 1000,
@@ -903,7 +903,7 @@ export default function LandingPage() {
             alignItems: "center",
           }}
         >
-          {/* Mockup: My Stack */}
+          {/* Mockup: Project */}
           <div
             style={{
               background: t.surface,
@@ -927,7 +927,7 @@ export default function LandingPage() {
                   <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                 </svg>
                 <span style={{ fontSize: 12, fontWeight: 700, color: t.textMuted, fontFamily: "var(--font-mono)", letterSpacing: 1, textTransform: "uppercase" }}>
-                  My Stack
+                  My Project
                 </span>
                 <span
                   style={{
@@ -1006,12 +1006,12 @@ export default function LandingPage() {
                 <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
               </svg>
               <span style={{ color: t.textFaint }}>
-                statushub.app/dashboard?stack=vercel,github,supabase
+                statushub.app/dashboard?project=my-project
               </span>
             </div>
           </div>
           <div style={{ order: 1 }}>
-            <SectionLabel text="My Stack" t={t} />
+            <SectionLabel text="Projects" t={t} />
             <h2
               style={{
                 fontSize: 28,
@@ -1033,14 +1033,14 @@ export default function LandingPage() {
                 marginBottom: 24,
               }}
             >
-              Star the services your product depends on. Filter the dashboard
-              down to just your stack. Share it with your team via a single URL.
+              Organize the services your product depends on into projects.
+              Filter the dashboard to just what matters. Share with your team.
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <FeaturePoint text="One-click star to add any service to your stack" t={t} />
-              <FeaturePoint text="Shareable stack URLs for team coordination" t={t} />
+              <FeaturePoint text="One-click star to add services to your project" t={t} />
+              <FeaturePoint text="Shareable project URLs for team coordination" t={t} />
               <FeaturePoint text="Filter view to see only what matters to you" t={t} />
-              <FeaturePoint text="Cloud sync — your stack follows you across devices" t={t} />
+              <FeaturePoint text="Cloud sync — projects follow you across devices" t={t} />
             </div>
           </div>
         </div>
@@ -1381,8 +1381,8 @@ export default function LandingPage() {
             margin: "0 auto 40px",
           }}
         >
-          The full dashboard is free with no signup. Sign in to unlock
-          notifications, cloud sync, and more.
+          The full dashboard is free. Upgrade to Pro for more projects,
+          more services, and premium features.
         </p>
         <div
           className="sh-pricing-grid"
@@ -1418,12 +1418,11 @@ export default function LandingPage() {
               {[
                 "Full dashboard access",
                 `All ${totalCount || "40+"} services monitored`,
-                "My Stack (local storage)",
+                "1 project, 5 services",
+                "Email & push notifications",
                 "Search, filter & sort",
                 "Service detail & incident history",
-                "Compact & comfortable views",
                 "3 themes (dark, light, midnight)",
-                "Keyboard shortcuts",
               ].map((f) => (
                 <div
                   key={f}
@@ -1493,24 +1492,24 @@ export default function LandingPage() {
               RECOMMENDED
             </div>
             <div style={{ fontSize: 11, fontWeight: 700, color: t.accentPrimary, fontFamily: "var(--font-mono)", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>
-              Premium
+              Pro
             </div>
             <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: -1, color: t.text, marginBottom: 4 }}>
-              Free<span style={{ fontSize: 14, fontWeight: 500, color: t.textFaint }}> (beta)</span>
+              $6<span style={{ fontSize: 14, fontWeight: 500, color: t.textFaint }}>/month</span>
             </div>
             <div style={{ fontSize: 13, color: t.textFaint, marginBottom: 24 }}>
-              Sign in with GitHub or Google
+              For teams and power users
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {[
                 "Everything in Free",
-                "Email notifications (5 event types)",
-                "Browser push notifications",
+                "3 projects, 7 services each",
+                "All 11 notification event types",
                 "Granular alert controls",
-                "Custom email address",
                 "Cloud-synced preferences",
-                "My Stack synced across devices",
-                "Shareable stack URLs",
+                "Public status pages (coming soon)",
+                "Uptime reports (coming soon)",
+                "Weekly digest email (coming soon)",
               ].map((f) => (
                 <div
                   key={f}
@@ -1529,51 +1528,26 @@ export default function LandingPage() {
                 </div>
               ))}
             </div>
-            {isSupabaseEnabled && !user ? (
-              <button
-                onClick={() => setShowSignIn(true)}
-                style={{
-                  display: "block",
-                  width: "100%",
-                  textAlign: "center",
-                  marginTop: 28,
-                  padding: "10px 0",
-                  borderRadius: 8,
-                  border: "none",
-                  background: t.accentPrimary,
-                  color: "#fff",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  fontFamily: "var(--font-sans)",
-                  transition: "opacity 0.15s",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.9")}
-                onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
-              >
-                Sign In Free
-              </button>
-            ) : (
-              <Link
-                href="/dashboard"
-                style={{
-                  display: "block",
-                  textAlign: "center",
-                  marginTop: 28,
-                  padding: "10px 0",
-                  borderRadius: 8,
-                  border: "none",
-                  background: t.accentPrimary,
-                  color: "#fff",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  textDecoration: "none",
-                  fontFamily: "var(--font-sans)",
-                }}
-              >
-                Go to Dashboard
-              </Link>
-            )}
+            <Link
+              href="/dashboard"
+              style={{
+                display: "block",
+                textAlign: "center",
+                marginTop: 28,
+                padding: "10px 0",
+                borderRadius: 8,
+                border: "none",
+                background: t.accentPrimary,
+                color: "#fff",
+                fontSize: 14,
+                fontWeight: 600,
+                textDecoration: "none",
+                fontFamily: "var(--font-sans)",
+                transition: "opacity 0.15s",
+              }}
+            >
+              Get Started
+            </Link>
           </div>
         </div>
       </section>

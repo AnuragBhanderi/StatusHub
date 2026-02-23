@@ -11,7 +11,7 @@ interface UserMenuProps {
 }
 
 export default function UserMenu({ t }: UserMenuProps) {
-  const { user, signOut, notificationPrefs, saveNotificationPrefs } = useUser();
+  const { user, signOut, plan, notificationPrefs, saveNotificationPrefs, setShowUpgradeModal } = useUser();
   const [open, setOpen] = useState(false);
   const [showNotifSettings, setShowNotifSettings] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -101,15 +101,33 @@ export default function UserMenu({ t }: UserMenuProps) {
                 marginBottom: 4,
               }}
             >
-              <div
-                style={{
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: t.text,
-                  fontFamily: "var(--font-sans)",
-                }}
-              >
-                {name}
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: t.text,
+                    fontFamily: "var(--font-sans)",
+                  }}
+                >
+                  {name}
+                </span>
+                <span
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 700,
+                    color: plan === "pro" ? t.accentPrimary : t.textMuted,
+                    background: plan === "pro" ? `${t.accentPrimary}15` : t.tagBg,
+                    border: `1px solid ${plan === "pro" ? `${t.accentPrimary}30` : t.border}`,
+                    padding: "1px 6px",
+                    borderRadius: 4,
+                    fontFamily: "var(--font-mono)",
+                    textTransform: "uppercase",
+                    letterSpacing: 0.5,
+                  }}
+                >
+                  {plan === "pro" ? "Pro" : "Free"}
+                </span>
               </div>
               <div
                 style={{
@@ -166,6 +184,44 @@ export default function UserMenu({ t }: UserMenuProps) {
               </svg>
               Notification Settings
             </button>
+            {plan === "free" && (
+              <button
+                onClick={() => {
+                  setOpen(false);
+                  setShowUpgradeModal(true);
+                }}
+                style={{
+                  width: "100%",
+                  padding: "8px 10px",
+                  border: "none",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  background: "transparent",
+                  color: t.accentPrimary,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  fontFamily: "var(--font-sans)",
+                  textAlign: "left" as const,
+                  transition: "background 0.15s",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.background = t.surfaceHover)
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.background = "transparent")
+                }
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                  <path d="M2 17l10 5 10-5" />
+                  <path d="M2 12l10 5 10-5" />
+                </svg>
+                Upgrade to Pro
+              </button>
+            )}
             <button
               onClick={async () => {
                 await signOut();

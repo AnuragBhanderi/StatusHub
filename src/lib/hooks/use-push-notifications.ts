@@ -12,7 +12,7 @@ interface ServiceData {
 
 export function usePushNotifications(
   services: ServiceData[],
-  myStack: string[],
+  projectSlugs: string[],
   enabled: boolean
 ) {
   const prevStatuses = useRef<Map<string, string>>(new Map());
@@ -34,7 +34,7 @@ export function usePushNotifications(
       return;
     }
 
-    const stackSet = new Set(myStack);
+    const stackSet = new Set(projectSlugs);
 
     for (const service of services) {
       if (!stackSet.has(service.slug)) continue;
@@ -62,5 +62,5 @@ export function usePushNotifications(
       map.set(s.slug, s.currentStatus);
     }
     prevStatuses.current = map;
-  }, [services, myStack, enabled]);
+  }, [services, projectSlugs, enabled]);
 }

@@ -255,7 +255,7 @@ export default function NotificationSettings({
                   {pushPermission === "denied"
                     ? "Blocked by browser — enable in browser settings"
                     : pushPermission === "granted"
-                    ? "Get notified when My Stack services change"
+                    ? "Get notified when project services change"
                     : "Click to request permission"}
                 </div>
               </div>

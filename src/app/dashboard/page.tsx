@@ -10,10 +10,12 @@ import StatusBanner from "@/components/StatusBanner";
 import SearchBar from "@/components/SearchBar";
 import CategoryPills from "@/components/CategoryPills";
 import ServiceCard from "@/components/ServiceCard";
-import MyStackToggle from "@/components/MyStackToggle";
 import ServiceDetailView from "@/components/ServiceDetailView";
 import UserMenu from "@/components/UserMenu";
 import NotificationBell from "@/components/NotificationBell";
+import ProjectSwitcher from "@/components/ProjectSwitcher";
+import ProjectManager from "@/components/ProjectManager";
+import UpgradeModal from "@/components/UpgradeModal";
 import { ToastProvider, useToast } from "@/components/Toast";
 import AppHeader from "@/components/AppHeader";
 import AppFooter from "@/components/AppFooter";
@@ -65,12 +67,24 @@ function DashboardInner() {
     user,
     isLoading: authLoading,
     isSupabaseEnabled,
-    preferences: { theme, compact, myStack, sort: sortMode },
+    preferences: { theme, compact, sort: sortMode },
     setTheme,
     setCompact,
     setSort: setSortMode,
-    toggleStack,
-    setMyStack,
+    // Projects
+    plan,
+    projects,
+    activeProjectId,
+    activeProjectSlugs,
+    setActiveProject,
+    addServiceToProject,
+    removeServiceFromProject,
+    isInActiveProject,
+    createProject,
+    deleteProject,
+    renameProject,
+    showUpgradeModal,
+    setShowUpgradeModal,
     notificationPrefs,
     setPushEnabled,
   } = useUser();
@@ -85,12 +99,13 @@ function DashboardInner() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [showSignIn, setShowSignIn] = useState(false);
+  const [managingProject, setManagingProject] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const lastFetchTimeRef = useRef(Date.now());
   const [countdown, setCountdown] = useState(180);
 
-  // Browser push notifications for My Stack services
-  usePushNotifications(services, myStack, notificationPrefs.pushEnabled);
+  // Browser push notifications for active project services
+  usePushNotifications(services, activeProjectSlugs, notificationPrefs.pushEnabled);
 
   // Bridge user-context toast events to the Toast UI
   const { showToast } = useToast();
@@ -124,14 +139,6 @@ function DashboardInner() {
     const serviceParam = params.get("service");
     if (serviceParam) {
       setSelectedSlug(serviceParam);
-    }
-    const stackParam = params.get("stack");
-    if (stackParam && !user) {
-      const slugs = stackParam.split(",").filter(Boolean);
-      if (slugs.length > 0) {
-        setMyStack(slugs);
-        setShowMyStack(true);
-      }
     }
   }, []);
 
@@ -181,9 +188,21 @@ function DashboardInner() {
 
   const t = THEMES[theme];
 
+  // Toggle service in active project
+  const toggleServiceInProject = useCallback(
+    (slug: string) => {
+      if (isInActiveProject(slug)) {
+        removeServiceFromProject(slug);
+      } else {
+        addServiceToProject(slug);
+      }
+    },
+    [isInActiveProject, removeServiceFromProject, addServiceToProject]
+  );
+
   const filtered = useMemo(() => {
     let list = services;
-    if (showMyStack) list = list.filter((s) => myStack.includes(s.slug));
+    if (showMyStack) list = list.filter((s) => activeProjectSlugs.includes(s.slug));
     if (activeCategory !== "All")
       list = list.filter((s) => s.category === activeCategory);
     if (search) {
@@ -211,7 +230,7 @@ function DashboardInner() {
       operational: list.filter((s) => s.currentStatus === "OPERATIONAL" && s.monitoringCount === 0).sort(sorter),
       total: list.length,
     };
-  }, [search, activeCategory, showMyStack, myStack, services, sortMode]);
+  }, [search, activeCategory, showMyStack, activeProjectSlugs, services, sortMode]);
 
   const operational = services.filter(
     (s) => s.currentStatus === "OPERATIONAL"
@@ -333,24 +352,37 @@ function DashboardInner() {
                     Live{lastUpdated ? ` · ${lastUpdated}` : ""}{!loading && ` · ${Math.floor(countdown / 60)}:${String(countdown % 60).padStart(2, "0")}`}
                   </span>
                 </div>
-                {isSignedIn && (
-                  <MyStackToggle
-                    showMyStack={showMyStack}
-                    onToggle={() => setShowMyStack(!showMyStack)}
-                    count={myStack.length}
+                {isSignedIn && projects.length > 0 && (
+                  <ProjectSwitcher
+                    projects={projects}
+                    activeProjectId={activeProjectId}
+                    onSelect={setActiveProject}
+                    onNewProject={async () => {
+                      const name = prompt("Project name:");
+                      if (name?.trim()) {
+                        const p = await createProject(name.trim());
+                        if (p) {
+                          setActiveProject(p.id);
+                          showToast(`Created "${p.name}"`, "success");
+                        }
+                      }
+                    }}
+                    showProjectFilter={showMyStack}
+                    onToggleFilter={() => setShowMyStack(!showMyStack)}
                     t={t}
                   />
                 )}
-                {isSignedIn && showMyStack && myStack.length > 0 && (
+                {isSignedIn && showMyStack && activeProjectSlugs.length > 0 && (
                   <button
                     onClick={() => {
-                      const url = `${window.location.origin}/dashboard?stack=${myStack.join(",")}`;
+                      const ap = projects.find((p) => p.id === activeProjectId) || projects[0];
+                      const url = `${window.location.origin}/dashboard?project=${ap?.slug || ""}`;
                       navigator.clipboard.writeText(url).then(() => {
-                        showToast("Stack link copied!", "success");
+                        showToast("Project link copied!", "success");
                       });
                     }}
-                    title="Share your stack as a URL"
-                    aria-label="Share stack"
+                    title="Share your project as a URL"
+                    aria-label="Share project"
                     style={{
                       background: "transparent",
                       border: `1px solid ${t.border}`,
@@ -406,8 +438,8 @@ function DashboardInner() {
           <ServiceDetailView
             service={selectedService}
             onBack={() => setSelectedSlug(null)}
-            isInStack={isSignedIn ? myStack.includes(selectedService.slug) : false}
-            onToggleStack={() => isSignedIn && toggleStack(selectedService.slug)}
+            isInStack={isSignedIn ? isInActiveProject(selectedService.slug) : false}
+            onToggleStack={() => isSignedIn && toggleServiceInProject(selectedService.slug)}
             hideStackAction={!isSignedIn}
             t={t}
           />
@@ -545,7 +577,7 @@ function DashboardInner() {
                   }}
                 >
                   {showMyStack
-                    ? "No services in your stack yet."
+                    ? "No services in your project yet."
                     : "No services found."}
                 </div>
                 <div
@@ -605,8 +637,8 @@ function DashboardInner() {
                             monitoringCount={s.monitoringCount}
                             latestMonitoringIncident={s.latestMonitoringIncident}
                             compact={compact} onClick={() => setSelectedSlug(s.slug)}
-                            isInStack={isSignedIn ? myStack.includes(s.slug) : false}
-                            onToggleStack={() => isSignedIn && toggleStack(s.slug)}
+                            isInStack={isSignedIn ? isInActiveProject(s.slug) : false}
+                            onToggleStack={() => isSignedIn && toggleServiceInProject(s.slug)}
                             hideStackAction={!isSignedIn} t={t}
                           />
                         </div>
@@ -657,8 +689,8 @@ function DashboardInner() {
                             monitoringCount={s.monitoringCount}
                             latestMonitoringIncident={s.latestMonitoringIncident}
                             compact={compact} onClick={() => setSelectedSlug(s.slug)}
-                            isInStack={isSignedIn ? myStack.includes(s.slug) : false}
-                            onToggleStack={() => isSignedIn && toggleStack(s.slug)}
+                            isInStack={isSignedIn ? isInActiveProject(s.slug) : false}
+                            onToggleStack={() => isSignedIn && toggleServiceInProject(s.slug)}
                             hideStackAction={!isSignedIn} t={t}
                           />
                         </div>
@@ -708,8 +740,8 @@ function DashboardInner() {
                             monitoringCount={s.monitoringCount}
                             latestMonitoringIncident={s.latestMonitoringIncident}
                             compact={compact} onClick={() => setSelectedSlug(s.slug)}
-                            isInStack={isSignedIn ? myStack.includes(s.slug) : false}
-                            onToggleStack={() => isSignedIn && toggleStack(s.slug)}
+                            isInStack={isSignedIn ? isInActiveProject(s.slug) : false}
+                            onToggleStack={() => isSignedIn && toggleServiceInProject(s.slug)}
                             hideStackAction={!isSignedIn} t={t}
                           />
                         </div>
@@ -738,6 +770,24 @@ function DashboardInner() {
 
       {/* Sign In Modal */}
       {showSignIn && <SignInModal t={t} onClose={() => setShowSignIn(false)} />}
+
+      {/* Upgrade Modal */}
+      {showUpgradeModal && <UpgradeModal t={t} onClose={() => setShowUpgradeModal(false)} />}
+
+      {/* Project Manager Modal */}
+      {managingProject && activeProjectId && (() => {
+        const mp = projects.find((p) => p.id === activeProjectId);
+        return mp ? (
+          <ProjectManager
+            project={mp}
+            plan={plan}
+            onRename={renameProject}
+            onDelete={deleteProject}
+            onClose={() => setManagingProject(false)}
+            t={t}
+          />
+        ) : null;
+      })()}
     </div>
   );
 }
