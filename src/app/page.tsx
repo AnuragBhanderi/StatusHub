@@ -53,6 +53,36 @@ function useReveal(): { ref: React.RefObject<HTMLDivElement | null>; style: Reac
   return { ref, style };
 }
 
+/* ─── Staggered scroll reveal — children cascade in one by one ─── */
+function useStaggerReveal(staggerMs = 120) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [revealed, setRevealed] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) { setRevealed(true); return; }
+    const rect = el.getBoundingClientRect();
+    if (rect.top < window.innerHeight + 50) { setRevealed(true); return; }
+    const handler = () => {
+      const r = el.getBoundingClientRect();
+      if (r.top < window.innerHeight + 50) {
+        setRevealed(true);
+        window.removeEventListener("scroll", handler);
+      }
+    };
+    window.addEventListener("scroll", handler, { passive: true });
+    return () => window.removeEventListener("scroll", handler);
+  }, []);
+
+  const item = (i: number): React.CSSProperties => ({
+    opacity: revealed ? 1 : 0,
+    transform: revealed ? "translateY(0)" : "translateY(24px)",
+    transition: `opacity 0.5s cubic-bezier(0.16,1,0.3,1) ${i * staggerMs}ms, transform 0.5s cubic-bezier(0.16,1,0.3,1) ${i * staggerMs}ms`,
+  });
+
+  return { ref: ref as React.RefObject<HTMLDivElement | null>, item };
+}
+
 /* ─── Reusable section heading ─── */
 function SectionLabel({ text, t }: { text: string; t: (typeof THEMES)["dark"] }) {
   return (
@@ -121,7 +151,7 @@ function FeaturePoint({
 }
 
 /* ─── Animated counter ─── */
-function AnimatedCount({ target, duration = 1200 }: { target: number; duration?: number }) {
+function AnimatedCount({ target, duration = 2500 }: { target: number; duration?: number }) {
   const [count, setCount] = useState(0);
   const [started, setStarted] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
@@ -205,13 +235,13 @@ export default function LandingPage() {
   }, []);
 
   // Section reveal hooks
-  const stepsReveal = useReveal();
+  const stepsStagger = useStaggerReveal(120);
   const feat1Reveal = useReveal();
   const feat2Reveal = useReveal();
   const feat3Reveal = useReveal();
   const feat4Reveal = useReveal();
-  const pricingReveal = useReveal();
-  const moreReveal = useReveal();
+  const pricingStagger = useStaggerReveal(150);
+  const moreStagger = useStaggerReveal(80);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const ctaReveal = useReveal();
 
@@ -922,27 +952,28 @@ export default function LandingPage() {
 
       {/* ─── How It Works ─── */}
       <section
-        ref={stepsReveal.ref}
+        ref={stepsStagger.ref}
         style={{
           maxWidth: 900,
           margin: "0 auto",
           padding: "0 24px 100px",
           textAlign: "center",
-          ...stepsReveal.style,
         }}
       >
-        <SectionLabel text="How it works" t={t} />
-        <h2
-          style={{
-            fontSize: 32,
-            fontWeight: 700,
-            letterSpacing: -1,
-            lineHeight: 1.2,
-            margin: "0 0 48px 0",
-          }}
-        >
-          Three steps. Zero config.
-        </h2>
+        <div style={stepsStagger.item(0)}>
+          <SectionLabel text="How it works" t={t} />
+          <h2
+            style={{
+              fontSize: 32,
+              fontWeight: 700,
+              letterSpacing: -1,
+              lineHeight: 1.2,
+              margin: "0 0 48px 0",
+            }}
+          >
+            Three steps. Zero config.
+          </h2>
+        </div>
         <div
           className="sh-landing-steps"
           style={{
@@ -992,8 +1023,7 @@ export default function LandingPage() {
                 background: t.surface,
                 border: `1px solid ${t.border}`,
                 textAlign: "center",
-                transition: "all 0.25s ease",
-                animationDelay: `${i * 0.12}s`,
+                ...stepsStagger.item(i + 1),
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.borderColor = t.borderHover;
@@ -1700,39 +1730,40 @@ export default function LandingPage() {
       {/* ─── Pricing / Free vs Premium ─── */}
       <section
         id="pricing"
-        ref={pricingReveal.ref}
+        ref={pricingStagger.ref}
         style={{
           maxWidth: 800,
           margin: "0 auto",
           padding: "0 24px 100px",
           textAlign: "center",
-          ...pricingReveal.style,
         }}
       >
-        <SectionLabel text="Pricing" t={t} />
-        <h2
-          style={{
-            fontSize: 32,
-            fontWeight: 700,
-            letterSpacing: -1,
-            lineHeight: 1.2,
-            margin: "0 0 12px 0",
-          }}
-        >
-          Free forever. Premium when you need it.
-        </h2>
-        <p
-          style={{
-            fontSize: 15,
-            color: t.textMuted,
-            lineHeight: 1.6,
-            maxWidth: 520,
-            margin: "0 auto 40px",
-          }}
-        >
-          The full dashboard is free. Upgrade to Pro for more projects,
-          more services, and premium features.
-        </p>
+        <div style={pricingStagger.item(0)}>
+          <SectionLabel text="Pricing" t={t} />
+          <h2
+            style={{
+              fontSize: 32,
+              fontWeight: 700,
+              letterSpacing: -1,
+              lineHeight: 1.2,
+              margin: "0 0 12px 0",
+            }}
+          >
+            Free forever. Premium when you need it.
+          </h2>
+          <p
+            style={{
+              fontSize: 15,
+              color: t.textMuted,
+              lineHeight: 1.6,
+              maxWidth: 520,
+              margin: "0 auto 40px",
+            }}
+          >
+            The full dashboard is free. Upgrade to Pro for more projects,
+            more services, and premium features.
+          </p>
+        </div>
         <div
           className="sh-pricing-grid"
           style={{
@@ -1749,7 +1780,7 @@ export default function LandingPage() {
               borderRadius: 14,
               background: t.surface,
               border: `1px solid ${t.border}`,
-              transition: "all 0.25s ease",
+              ...pricingStagger.item(1),
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.borderColor = t.borderHover;
@@ -1832,8 +1863,8 @@ export default function LandingPage() {
               background: t.surface,
               border: `1px solid ${t.accentPrimary}35`,
               position: "relative",
-              transition: "all 0.25s ease",
               boxShadow: `0 0 30px ${t.accentPrimary}08`,
+              ...pricingStagger.item(2),
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.borderColor = t.accentPrimary;
@@ -1933,27 +1964,28 @@ export default function LandingPage() {
 
       {/* ─── Additional Features Grid ─── */}
       <section
-        ref={moreReveal.ref}
+        ref={moreStagger.ref}
         style={{
           maxWidth: 1000,
           margin: "0 auto",
           padding: "0 24px 100px",
           textAlign: "center",
-          ...moreReveal.style,
         }}
       >
-        <SectionLabel text="And more" t={t} />
-        <h2
-          style={{
-            fontSize: 28,
-            fontWeight: 700,
-            letterSpacing: -0.5,
-            lineHeight: 1.2,
-            margin: "0 0 40px 0",
-          }}
-        >
-          Built for developers.
-        </h2>
+        <div style={moreStagger.item(0)}>
+          <SectionLabel text="And more" t={t} />
+          <h2
+            style={{
+              fontSize: 28,
+              fontWeight: 700,
+              letterSpacing: -0.5,
+              lineHeight: 1.2,
+              margin: "0 0 40px 0",
+            }}
+          >
+            Built for developers.
+          </h2>
+        </div>
         <div
           className="sh-landing-features-grid"
           style={{
@@ -2026,7 +2058,7 @@ export default function LandingPage() {
                 background: t.surface,
                 border: `1px solid ${t.border}`,
                 textAlign: "left",
-                transition: "all 0.25s ease",
+                ...moreStagger.item(i + 1),
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.borderColor = t.borderHover;
