@@ -17,6 +17,7 @@ import NotificationBell from "@/components/NotificationBell";
 import { ToastProvider, useToast } from "@/components/Toast";
 import AppHeader from "@/components/AppHeader";
 import AppFooter from "@/components/AppFooter";
+import SignInModal from "@/components/SignInModal";
 import LoadingState from "@/components/LoadingState";
 import ErrorState from "@/components/ErrorState";
 import { usePushNotifications } from "@/lib/hooks/use-push-notifications";
@@ -72,8 +73,6 @@ function DashboardInner() {
     setMyStack,
     notificationPrefs,
     setPushEnabled,
-    signInWithGoogle,
-    signInWithGitHub,
   } = useUser();
 
   const [search, setSearch] = useState("");
@@ -85,6 +84,7 @@ function DashboardInner() {
   const [hasMounted, setHasMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [showSignIn, setShowSignIn] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const lastFetchTimeRef = useRef(Date.now());
   const [countdown, setCountdown] = useState(180);
@@ -276,7 +276,7 @@ function DashboardInner() {
             {isSignedIn && <UserMenu t={t} />}
             {isSupabaseEnabled && !user && !authLoading && (
               <button
-                onClick={signInWithGitHub}
+                onClick={() => setShowSignIn(true)}
                 style={{
                   background: "transparent",
                   border: `1px solid ${t.border}`,
@@ -735,6 +735,9 @@ function DashboardInner() {
           </>
         )}
       </main>
+
+      {/* Sign In Modal */}
+      {showSignIn && <SignInModal t={t} onClose={() => setShowSignIn(false)} />}
     </div>
   );
 }

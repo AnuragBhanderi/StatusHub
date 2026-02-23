@@ -7,6 +7,7 @@ import { useUser } from "@/lib/user-context";
 import AppHeader from "@/components/AppHeader";
 import AppFooter from "@/components/AppFooter";
 import LogoIcon from "@/components/LogoIcon";
+import SignInModal from "@/components/SignInModal";
 import Link from "next/link";
 
 interface PreviewService {
@@ -89,9 +90,9 @@ export default function LandingPage() {
     user,
     isSupabaseEnabled,
     preferences: { theme },
-    signInWithGitHub,
   } = useUser();
   const t = THEMES[theme];
+  const [showSignIn, setShowSignIn] = useState(false);
 
   // Build a slug->logoUrl map from the services config for demo sections
   const logoMap = useMemo(() => {
@@ -196,7 +197,7 @@ export default function LandingPage() {
             </a>
             {isSupabaseEnabled && !user && (
               <button
-                onClick={signInWithGitHub}
+                onClick={() => setShowSignIn(true)}
                 style={{
                   background: t.accentPrimary,
                   color: "#fff",
@@ -372,7 +373,7 @@ export default function LandingPage() {
           </Link>
           {isSupabaseEnabled && !user && (
             <button
-              onClick={signInWithGitHub}
+              onClick={() => setShowSignIn(true)}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -1528,7 +1529,7 @@ export default function LandingPage() {
             </div>
             {isSupabaseEnabled && !user ? (
               <button
-                onClick={signInWithGitHub}
+                onClick={() => setShowSignIn(true)}
                 style={{
                   display: "block",
                   width: "100%",
@@ -1839,7 +1840,7 @@ export default function LandingPage() {
             </Link>
             {isSupabaseEnabled && !user && (
               <button
-                onClick={signInWithGitHub}
+                onClick={() => setShowSignIn(true)}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -1873,6 +1874,9 @@ export default function LandingPage() {
 
       {/* ─── Footer ─── */}
       <AppFooter t={t} />
+
+      {/* Sign In Modal */}
+      {showSignIn && <SignInModal t={t} onClose={() => setShowSignIn(false)} />}
     </div>
   );
 }

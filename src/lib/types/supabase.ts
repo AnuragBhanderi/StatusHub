@@ -14,9 +14,16 @@ export interface NotificationPreferences {
   push_enabled: boolean;
   email_enabled: boolean;
   email_address: string | null;
-  severity_threshold: "all" | "outages_only" | "major_only";
+  severity_threshold: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface IncidentSnapshotEntry {
+  id: string;
+  status: string;
+  impact: string;
+  updateCount: number;
 }
 
 export interface ServiceStatusSnapshot {
@@ -24,6 +31,7 @@ export interface ServiceStatusSnapshot {
   service_slug: string;
   status: string;
   incident_title: string | null;
+  incidents_json: IncidentSnapshotEntry[] | null;
   snapshot_at: string;
 }
 
@@ -33,6 +41,7 @@ export interface EmailAlertLog {
   service_slug: string;
   old_status: string;
   new_status: string;
+  event_type: string;
   sent_at: string;
 }
 
@@ -69,7 +78,7 @@ export interface Database {
           push_enabled?: boolean;
           email_enabled?: boolean;
           email_address?: string | null;
-          severity_threshold?: "all" | "outages_only" | "major_only";
+          severity_threshold?: string;
           created_at?: string;
           updated_at?: string;
         };
@@ -79,7 +88,7 @@ export interface Database {
           push_enabled?: boolean;
           email_enabled?: boolean;
           email_address?: string | null;
-          severity_threshold?: "all" | "outages_only" | "major_only";
+          severity_threshold?: string;
           created_at?: string;
           updated_at?: string;
         };
@@ -92,6 +101,7 @@ export interface Database {
           service_slug: string;
           status: string;
           incident_title?: string | null;
+          incidents_json?: IncidentSnapshotEntry[] | null;
           snapshot_at?: string;
         };
         Update: {
@@ -99,6 +109,7 @@ export interface Database {
           service_slug?: string;
           status?: string;
           incident_title?: string | null;
+          incidents_json?: IncidentSnapshotEntry[] | null;
           snapshot_at?: string;
         };
         Relationships: [];
@@ -111,6 +122,7 @@ export interface Database {
           service_slug: string;
           old_status: string;
           new_status: string;
+          event_type?: string;
           sent_at?: string;
         };
         Update: {
@@ -119,6 +131,7 @@ export interface Database {
           service_slug?: string;
           old_status?: string;
           new_status?: string;
+          event_type?: string;
           sent_at?: string;
         };
         Relationships: [];

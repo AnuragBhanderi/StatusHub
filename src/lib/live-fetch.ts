@@ -30,6 +30,14 @@ export interface LiveServiceData {
     name: string;
     status: string;
   }[];
+  activeIncidents: {
+    id: string;
+    title: string;
+    status: string;
+    impact: string;
+    startedAt: string;
+    updateCount: number;
+  }[];
 }
 
 export interface LiveServiceDetail {
@@ -464,7 +472,8 @@ export async function fetchAllServicesLive(): Promise<LiveServiceData[]> {
       batch.map(async (config) => {
         if (config.sourceType === "AWS_HEALTH") {
           const awsData = await fetchAwsHealth();
-          const activeInc = awsData?.incidents.filter((i) => !i.isResolved) ?? [];
+          const allInc = awsData?.incidents ?? [];
+          const activeInc = allInc.filter((i) => !i.isResolved);
           return {
             id: config.slug,
             name: config.name,
@@ -487,6 +496,14 @@ export async function fetchAllServicesLive(): Promise<LiveServiceData[]> {
             monitoringCount: 0,
             latestMonitoringIncident: null,
             components: awsData?.components,
+            activeIncidents: allInc.map((i) => ({
+              id: i.id,
+              title: i.title,
+              status: i.isResolved ? "RESOLVED" : i.status,
+              impact: i.impact,
+              startedAt: i.startedAt,
+              updateCount: 1,
+            })),
           } satisfies LiveServiceData;
         }
 
@@ -495,6 +512,10 @@ export async function fetchAllServicesLive(): Promise<LiveServiceData[]> {
           const affectedIds = new Set(
             (gcpData?.activeIncidents ?? []).flatMap((i) => (i.affected_products ?? []).map((p) => p.id))
           );
+          const gcpAllIncidents = [
+            ...(gcpData?.activeIncidents ?? []),
+            ...(gcpData?.incidents ?? []).filter((i) => !!i.end).slice(0, 10),
+          ];
           return {
             id: config.slug,
             name: config.name,
@@ -520,6 +541,14 @@ export async function fetchAllServicesLive(): Promise<LiveServiceData[]> {
               name: p.title,
               status: affectedIds.has(p.id) ? "PARTIAL_OUTAGE" : "OPERATIONAL",
             })),
+            activeIncidents: gcpAllIncidents.map((i) => ({
+              id: i.id,
+              title: i.external_desc,
+              status: i.end ? "RESOLVED" : "INVESTIGATING",
+              impact: i.severity === "high" ? "CRITICAL" : "MAJOR",
+              startedAt: i.begin,
+              updateCount: i.updates?.length ?? (i.most_recent_update ? 1 : 0),
+            })),
           } satisfies LiveServiceData;
         }
 
@@ -539,6 +568,7 @@ export async function fetchAllServicesLive(): Promise<LiveServiceData[]> {
             monitoringCount: 0,
             latestMonitoringIncident: null,
             components: azureData?.components,
+            activeIncidents: [],
           } satisfies LiveServiceData;
         }
 
@@ -558,6 +588,7 @@ export async function fetchAllServicesLive(): Promise<LiveServiceData[]> {
             latestIncident: null,
             monitoringCount: 0,
             latestMonitoringIncident: null,
+            activeIncidents: [],
           } satisfies LiveServiceData;
         }
 
@@ -619,6 +650,14 @@ export async function fetchAllServicesLive(): Promise<LiveServiceData[]> {
               name: c.name,
               status: mapComponentStatus(c.status),
             })),
+          activeIncidents: allIncidents.map((i) => ({
+            id: i.id,
+            title: i.name,
+            status: mapIncidentStatus(i.status),
+            impact: mapIncidentImpact(i.impact),
+            startedAt: i.started_at,
+            updateCount: i.incident_updates?.length ?? 0,
+          })),
         } satisfies LiveServiceData;
       })
     );
@@ -643,6 +682,7 @@ export async function fetchAllServicesLive(): Promise<LiveServiceData[]> {
           latestIncident: null,
           monitoringCount: 0,
           latestMonitoringIncident: null,
+          activeIncidents: [],
         });
       }
     }

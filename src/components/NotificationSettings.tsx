@@ -4,23 +4,38 @@ import { useState } from "react";
 import type { Theme } from "@/config/themes";
 import { useToast } from "@/components/Toast";
 
-const EVENT_TYPES = [
+const STATUS_EVENTS = [
   { key: "major_outage", label: "Major outages", desc: "Complete service failures", color: "#ef4444" },
   { key: "partial_outage", label: "Partial outages", desc: "Some features unavailable", color: "#ea580c" },
   { key: "degraded", label: "Degraded performance", desc: "Slower than normal", color: "#ca8a04" },
   { key: "maintenance", label: "Scheduled maintenance", desc: "Planned maintenance windows", color: "#448aff" },
-  { key: "recovery", label: "Service recoveries", desc: "When services come back online", color: "#16a34a" },
+  { key: "recovery", label: "Service recoveries", desc: "When outages end and services come back", color: "#16a34a" },
+  { key: "maintenance_completed", label: "Maintenance completed", desc: "When scheduled maintenance ends", color: "#22c55e" },
+] as const;
+
+const INCIDENT_EVENTS = [
+  { key: "new_incident", label: "New incidents", desc: "When a new incident is reported", color: "#ef4444" },
+  { key: "incident_update", label: "Incident updates", desc: "When an ongoing incident gets a new update", color: "#f59e0b" },
+  { key: "incident_resolved", label: "Incident resolved", desc: "When a specific incident is marked resolved", color: "#16a34a" },
+  { key: "incident_escalated", label: "Incident escalated", desc: "When an incident's severity worsens", color: "#ef4444" },
+  { key: "incident_de_escalated", label: "Incident de-escalated", desc: "When an incident's severity improves", color: "#22c55e" },
 ] as const;
 
 // Parse legacy presets or new comma-separated format
 function parseThreshold(threshold: string): Set<string> {
   switch (threshold) {
     case "all":
-      return new Set(["degraded", "partial_outage", "major_outage", "maintenance", "recovery"]);
+      return new Set([
+        ...STATUS_EVENTS.map((e) => e.key),
+        ...INCIDENT_EVENTS.map((e) => e.key),
+      ]);
     case "outages_only":
-      return new Set(["partial_outage", "major_outage", "recovery"]);
+      return new Set([
+        "partial_outage", "major_outage", "recovery",
+        "new_incident", "incident_resolved", "incident_escalated", "incident_de_escalated",
+      ]);
     case "major_only":
-      return new Set(["major_outage", "recovery"]);
+      return new Set(["major_outage", "recovery", "incident_escalated", "incident_resolved"]);
     default:
       return new Set(threshold.split(",").filter(Boolean));
   }
@@ -367,69 +382,49 @@ export default function NotificationSettings({
                     >
                       Notify me about
                     </label>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                      {EVENT_TYPES.map((evt) => {
-                        const checked = enabledEvents.has(evt.key);
-                        return (
-                          <button
-                            key={evt.key}
-                            type="button"
-                            onClick={() => toggleEvent(evt.key)}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 10,
-                              padding: "7px 10px",
-                              borderRadius: 6,
-                              border: `1px solid ${checked ? evt.color + "35" : t.border}`,
-                              background: checked ? evt.color + "08" : "transparent",
-                              cursor: "pointer",
-                              transition: "all 0.15s",
-                              textAlign: "left",
-                            }}
-                          >
-                            <div
-                              style={{
-                                width: 16,
-                                height: 16,
-                                borderRadius: 4,
-                                border: `2px solid ${checked ? evt.color : t.border}`,
-                                background: checked ? evt.color : "transparent",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                flexShrink: 0,
-                                transition: "all 0.15s",
-                              }}
-                            >
-                              {checked && (
-                                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                  <polyline points="20 6 9 17 4 12" />
-                                </svg>
-                              )}
-                            </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: 12, fontWeight: 500, color: t.text }}>
-                                {evt.label}
-                              </div>
-                              <div style={{ fontSize: 11, color: t.textMuted, marginTop: 1 }}>
-                                {evt.desc}
-                              </div>
-                            </div>
-                            <div
-                              style={{
-                                width: 7,
-                                height: 7,
-                                borderRadius: "50%",
-                                background: evt.color,
-                                flexShrink: 0,
-                                opacity: 0.7,
-                              }}
-                            />
-                          </button>
-                        );
-                      })}
+
+                    {/* Service Status section */}
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: t.textSecondary,
+                        fontFamily: "var(--font-mono)",
+                        letterSpacing: 0.5,
+                        textTransform: "uppercase",
+                        marginBottom: 6,
+                        paddingLeft: 2,
+                      }}>
+                        Service Status
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        {STATUS_EVENTS.map((evt) => (
+                          <EventToggle key={evt.key} evt={evt} checked={enabledEvents.has(evt.key)} onToggle={toggleEvent} t={t} />
+                        ))}
+                      </div>
                     </div>
+
+                    {/* Incidents section */}
+                    <div>
+                      <div style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: t.textSecondary,
+                        fontFamily: "var(--font-mono)",
+                        letterSpacing: 0.5,
+                        textTransform: "uppercase",
+                        marginBottom: 6,
+                        paddingLeft: 2,
+                      }}>
+                        Incidents
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        {INCIDENT_EVENTS.map((evt) => (
+                          <EventToggle key={evt.key} evt={evt} checked={enabledEvents.has(evt.key)} onToggle={toggleEvent} t={t} />
+                        ))}
+                      </div>
+                    </div>
+
                     {enabledEvents.size === 0 && (
                       <div style={{ fontSize: 11, color: "#ef4444", marginTop: 6, fontWeight: 500 }}>
                         Select at least one event type to receive emails
@@ -531,6 +526,76 @@ export default function NotificationSettings({
         </div>
       </div>
     </div>
+  );
+}
+
+function EventToggle({
+  evt,
+  checked,
+  onToggle,
+  t,
+}: {
+  evt: { key: string; label: string; desc: string; color: string };
+  checked: boolean;
+  onToggle: (key: string) => void;
+  t: Theme;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(evt.key)}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "7px 10px",
+        borderRadius: 6,
+        border: `1px solid ${checked ? evt.color + "35" : t.border}`,
+        background: checked ? evt.color + "08" : "transparent",
+        cursor: "pointer",
+        transition: "all 0.15s",
+        textAlign: "left",
+      }}
+    >
+      <div
+        style={{
+          width: 16,
+          height: 16,
+          borderRadius: 4,
+          border: `2px solid ${checked ? evt.color : t.border}`,
+          background: checked ? evt.color : "transparent",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+          transition: "all 0.15s",
+        }}
+      >
+        {checked && (
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        )}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 12, fontWeight: 500, color: t.text }}>
+          {evt.label}
+        </div>
+        <div style={{ fontSize: 11, color: t.textMuted, marginTop: 1 }}>
+          {evt.desc}
+        </div>
+      </div>
+      <div
+        style={{
+          width: 7,
+          height: 7,
+          borderRadius: "50%",
+          background: evt.color,
+          flexShrink: 0,
+          opacity: 0.7,
+        }}
+      />
+    </button>
   );
 }
 
