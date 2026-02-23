@@ -267,3 +267,125 @@ function formatMissedEvent(pending: PendingEvent): { emoji: string; label: strin
 
   return { emoji, label, detail };
 }
+
+/* ─────────────────────────────────────────────────────────
+ *  Flush pending notification events
+ *
+ *  Called at the end of the cron run. For each (user, service)
+ *  group with queued events, check if the rate limiter now
+ *  allows sending. If yes, send a catch-up email and clear
+ *  the pending rows.
+ * ───────────────────────────────────────────────────────── */
+
+interface PendingRow {
+  id: string;
+  user_id: string;
+  service_slug: string;
+  event_type: string;
+  event_data: PendingEvent["event_data"];
+  created_at: string;
+}
+
+export async function flushPendingEvents(
+  adminClient: SupabaseClient,
+  allPrefs: { user_id: string; email_address: string | null; severity_threshold: string }[]
+): Promise<number> {
+  const { data: pendingRows } = await adminClient
+    .from("pending_notification_events")
+    .select("id, user_id, service_slug, event_type, event_data, created_at")
+    .order("created_at", { ascending: true });
+
+  if (!pendingRows || pendingRows.length === 0) return 0;
+
+  // Group by (user_id, service_slug)
+  const groups = new Map<string, PendingRow[]>();
+  for (const row of pendingRows as PendingRow[]) {
+    const key = `${row.user_id}::${row.service_slug}`;
+    const list = groups.get(key) || [];
+    list.push(row);
+    groups.set(key, list);
+  }
+
+  // Build email lookup
+  const emailMap = new Map<string, string>();
+  for (const pref of allPrefs) {
+    if (pref.email_address) emailMap.set(pref.user_id, pref.email_address);
+  }
+
+  const transporter = getTransporter();
+  const statusHubUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://statushub-seven.vercel.app";
+  let flushed = 0;
+
+  for (const [, rows] of groups) {
+    const userId = rows[0].user_id;
+    const serviceSlug = rows[0].service_slug;
+
+    const canSend = await shouldSendEmail(adminClient, userId, serviceSlug);
+    if (!canSend) continue;
+
+    const email = emailMap.get(userId);
+    if (!email) continue;
+
+    // Sort by priority — use the most important event as the main email
+    const sorted = [...rows].sort(
+      (a, b) => (EVENT_PRIORITY[a.event_type] ?? 99) - (EVENT_PRIORITY[b.event_type] ?? 99)
+    );
+
+    const main = sorted[0];
+    const mainData = main.event_data;
+
+    // Reconstruct a DetectedEvent for buildEmailParams
+    const mainEvent: DetectedEvent = {
+      eventType: mainData.eventType as DetectedEvent["eventType"],
+      serviceSlug: mainData.serviceSlug,
+      serviceName: mainData.serviceName,
+      oldStatus: mainData.oldStatus,
+      newStatus: mainData.newStatus,
+      incidentTitle: mainData.incidentTitle,
+      incidentImpact: mainData.incidentImpact,
+      oldImpact: mainData.oldImpact,
+    };
+
+    const emailParams = buildEmailParams(mainEvent, statusHubUrl);
+    const missedSummaries = sorted.slice(1).map((r) =>
+      formatMissedEvent({ event_type: r.event_type, event_data: r.event_data })
+    );
+
+    const { subject, html, text } = notificationEmail(emailParams, missedSummaries);
+
+    try {
+      await transporter.sendMail({
+        from: process.env.SMTP_FROM || "StatusHub <alerts@statushub.dev>",
+        to: email,
+        subject,
+        html,
+        text,
+        headers: {
+          "List-Unsubscribe": `<${statusHubUrl}>`,
+          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        },
+      });
+
+      await adminClient.from("email_alert_log").insert({
+        user_id: userId,
+        service_slug: serviceSlug,
+        old_status: mainData.oldStatus || mainData.incidentImpact || "",
+        new_status: mainData.newStatus || mainData.eventType,
+        event_type: mainData.eventType,
+      });
+
+      // Clear all pending events for this user + service
+      const ids = rows.map((r) => r.id);
+      await adminClient
+        .from("pending_notification_events")
+        .delete()
+        .in("id", ids);
+
+      flushed++;
+    } catch (err) {
+      console.error(`Failed to flush pending for ${userId}/${serviceSlug}:`, err);
+    }
+  }
+
+  return flushed;
+}

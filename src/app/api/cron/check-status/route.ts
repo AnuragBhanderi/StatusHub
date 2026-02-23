@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchAllServicesLive } from "@/lib/live-fetch";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { processServiceEvents } from "@/lib/email/process-service";
+import { processServiceEvents, flushPendingEvents } from "@/lib/email/process-service";
 import type { PreloadedContext } from "@/lib/email/process-service";
 import type { IncidentSnapshotEntry } from "@/lib/types/supabase";
 
@@ -77,10 +77,14 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Flush any pending notifications that were rate-limited in previous runs
+    const pendingFlushed = await flushPendingEvents(adminClient, preloaded.allPrefs);
+
     return NextResponse.json({
       checked: services.length,
       events: totalEvents,
       emailsSent: totalEmailsSent,
+      pendingFlushed,
       source: "poll",
       detectedEvents: allDetected,
     });
