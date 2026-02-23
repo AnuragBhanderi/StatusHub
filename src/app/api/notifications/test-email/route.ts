@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getTransporter } from "@/lib/email/transporter";
-import { statusChangeEmail } from "@/lib/email/templates";
+import { notificationEmail } from "@/lib/email/templates";
 
 export const dynamic = "force-dynamic";
 
@@ -30,14 +30,30 @@ export async function POST() {
 
   const statusHubUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://statushub-seven.vercel.app";
 
-  const { subject, html, text } = statusChangeEmail({
-    serviceName: "GitHub",
-    serviceSlug: "github",
-    oldStatus: "OPERATIONAL",
-    newStatus: "MAJOR_OUTAGE",
-    incidentTitle: "This is a test notification from StatusHub",
-    statusHubUrl,
-  });
+  const { subject, html, text } = notificationEmail(
+    {
+      eventType: "new_incident",
+      serviceName: "GitHub",
+      serviceSlug: "github",
+      incidentTitle: "Degraded availability for Actions and API requests",
+      incidentImpact: "MAJOR",
+      incidentStatus: "INVESTIGATING",
+      incidentStartedAt: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
+      statusHubUrl,
+      latestUpdateBody: "We are investigating reports of degraded performance for GitHub Actions and API requests. Some users may experience failed workflow runs and increased error rates on API calls. Our engineering team is actively working to identify the root cause.",
+      affectedComponents: [
+        { name: "Actions", status: "MAJOR_OUTAGE" },
+        { name: "API Requests", status: "DEGRADED" },
+        { name: "Git Operations", status: "OPERATIONAL" },
+        { name: "Webhooks", status: "PARTIAL_OUTAGE" },
+        { name: "Pages", status: "OPERATIONAL" },
+      ],
+    },
+    [
+      { emoji: "\u26a0\ufe0f", label: "Degraded", detail: "OPERATIONAL \u2192 DEGRADED" },
+      { emoji: "\ud83d\udcdd", label: "Incident Update", detail: "investigating connectivity issues" },
+    ]
+  );
 
   try {
     const transporter = getTransporter();
