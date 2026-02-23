@@ -1,4 +1,5 @@
 import { services as serviceConfigs } from "@/config/services";
+import type { ServiceConfig } from "@/config/services";
 import { mapStatuspageIndicator, mapIncidentImpact, mapIncidentStatus } from "@/lib/normalizer";
 
 export interface LiveServiceData {
@@ -458,11 +459,217 @@ async function fetchAzureStatus(): Promise<AzureResult | null> {
   }
 }
 
+// ── Builder helpers (shared by fetchAllServicesLive & fetchSingleServiceLive) ──
+
+function buildAwsLiveData(config: ServiceConfig, awsData: AwsHealthResult | null): LiveServiceData {
+  const allInc = awsData?.incidents ?? [];
+  const activeInc = allInc.filter((i) => !i.isResolved);
+  return {
+    id: config.slug,
+    name: config.name,
+    slug: config.slug,
+    category: config.category,
+    currentStatus: awsData?.status ?? "OPERATIONAL",
+    statusPageUrl: config.statusPageUrl,
+    logoUrl: config.logoUrl || null,
+    lastPolledAt: new Date().toISOString(),
+    incidentCount: activeInc.length,
+    latestIncident: activeInc[0]
+      ? {
+          id: activeInc[0].id,
+          title: activeInc[0].title,
+          status: activeInc[0].status,
+          impact: activeInc[0].impact,
+          startedAt: activeInc[0].startedAt,
+        }
+      : null,
+    monitoringCount: 0,
+    latestMonitoringIncident: null,
+    components: awsData?.components,
+    activeIncidents: allInc.map((i) => ({
+      id: i.id,
+      title: i.title,
+      status: i.isResolved ? "RESOLVED" : i.status,
+      impact: i.impact,
+      startedAt: i.startedAt,
+      updateCount: 1,
+    })),
+  };
+}
+
+function buildGcpLiveData(config: ServiceConfig, gcpData: GcpResult | null): LiveServiceData {
+  const affectedIds = new Set(
+    (gcpData?.activeIncidents ?? []).flatMap((i) => (i.affected_products ?? []).map((p) => p.id))
+  );
+  const gcpAllIncidents = [
+    ...(gcpData?.activeIncidents ?? []),
+    ...(gcpData?.incidents ?? []).filter((i) => !!i.end).slice(0, 10),
+  ];
+  return {
+    id: config.slug,
+    name: config.name,
+    slug: config.slug,
+    category: config.category,
+    currentStatus: gcpData?.status ?? "OPERATIONAL",
+    statusPageUrl: config.statusPageUrl,
+    logoUrl: config.logoUrl || null,
+    lastPolledAt: new Date().toISOString(),
+    incidentCount: gcpData?.activeIncidents.length ?? 0,
+    latestIncident: gcpData?.activeIncidents[0]
+      ? {
+          id: gcpData.activeIncidents[0].id,
+          title: gcpData.activeIncidents[0].external_desc,
+          status: "INVESTIGATING",
+          impact: gcpData.activeIncidents[0].severity === "high" ? "CRITICAL" : "MAJOR",
+          startedAt: gcpData.activeIncidents[0].begin,
+        }
+      : null,
+    monitoringCount: 0,
+    latestMonitoringIncident: null,
+    components: (gcpData?.products ?? []).map((p) => ({
+      name: p.title,
+      status: affectedIds.has(p.id) ? "PARTIAL_OUTAGE" : "OPERATIONAL",
+    })),
+    activeIncidents: gcpAllIncidents.map((i) => ({
+      id: i.id,
+      title: i.external_desc,
+      status: i.end ? "RESOLVED" : "INVESTIGATING",
+      impact: i.severity === "high" ? "CRITICAL" : "MAJOR",
+      startedAt: i.begin,
+      updateCount: i.updates?.length ?? (i.most_recent_update ? 1 : 0),
+    })),
+  };
+}
+
+function buildAzureLiveData(config: ServiceConfig, azureData: AzureResult | null): LiveServiceData {
+  return {
+    id: config.slug,
+    name: config.name,
+    slug: config.slug,
+    category: config.category,
+    currentStatus: azureData?.status ?? "OPERATIONAL",
+    statusPageUrl: config.statusPageUrl,
+    logoUrl: config.logoUrl || null,
+    lastPolledAt: new Date().toISOString(),
+    incidentCount: azureData?.components.filter((c) => c.status !== "OPERATIONAL").length ?? 0,
+    latestIncident: null,
+    monitoringCount: 0,
+    latestMonitoringIncident: null,
+    components: azureData?.components,
+    activeIncidents: [],
+  };
+}
+
+function buildStatuspageLiveData(config: ServiceConfig, data: StatuspageSummary | null): LiveServiceData {
+  if (!data) {
+    return {
+      id: config.slug,
+      name: config.name,
+      slug: config.slug,
+      category: config.category,
+      currentStatus: "OPERATIONAL",
+      statusPageUrl: config.statusPageUrl,
+      logoUrl: config.logoUrl || null,
+      lastPolledAt: null,
+      incidentCount: 0,
+      latestIncident: null,
+      monitoringCount: 0,
+      latestMonitoringIncident: null,
+      activeIncidents: [],
+    };
+  }
+
+  let status = mapStatuspageIndicator(data.status?.indicator ?? "none");
+  const allIncidents = data.incidents ?? [];
+  const unresolvedIncidents = allIncidents.filter((i) => !i.resolved_at);
+
+  const trulyActiveIncidents = unresolvedIncidents.filter(
+    (i) => i.status !== "monitoring" && i.impact !== "none"
+  );
+  const monitoringIncidents = unresolvedIncidents.filter(
+    (i) => i.status === "monitoring"
+  );
+
+  if (status === "OPERATIONAL" && trulyActiveIncidents.length > 0) {
+    const worstImpact = trulyActiveIncidents.reduce((worst, inc) => {
+      const order: Record<string, number> = { critical: 3, major: 2, minor: 1, none: 0 };
+      return (order[inc.impact] ?? 0) > (order[worst] ?? 0) ? inc.impact : worst;
+    }, "none");
+    if (worstImpact === "critical") status = "MAJOR_OUTAGE";
+    else if (worstImpact === "major") status = "PARTIAL_OUTAGE";
+    else if (worstImpact === "minor") status = "DEGRADED";
+  }
+
+  return {
+    id: config.slug,
+    name: config.name,
+    slug: config.slug,
+    category: config.category,
+    currentStatus: status,
+    statusPageUrl: config.statusPageUrl,
+    logoUrl: config.logoUrl || null,
+    lastPolledAt: new Date().toISOString(),
+    incidentCount: trulyActiveIncidents.length,
+    latestIncident: trulyActiveIncidents[0]
+      ? {
+          id: trulyActiveIncidents[0].id,
+          title: trulyActiveIncidents[0].name,
+          status: mapIncidentStatus(trulyActiveIncidents[0].status),
+          impact: mapIncidentImpact(trulyActiveIncidents[0].impact),
+          startedAt: trulyActiveIncidents[0].started_at,
+        }
+      : null,
+    monitoringCount: monitoringIncidents.length,
+    latestMonitoringIncident: monitoringIncidents[0]
+      ? {
+          id: monitoringIncidents[0].id,
+          title: monitoringIncidents[0].name,
+          status: mapIncidentStatus(monitoringIncidents[0].status),
+          impact: mapIncidentImpact(monitoringIncidents[0].impact),
+          startedAt: monitoringIncidents[0].started_at,
+        }
+      : null,
+    components: (data.components ?? [])
+      .filter((c) => !c.group)
+      .map((c) => ({
+        name: c.name,
+        status: mapComponentStatus(c.status),
+      })),
+    activeIncidents: allIncidents.map((i) => ({
+      id: i.id,
+      title: i.name,
+      status: mapIncidentStatus(i.status),
+      impact: mapIncidentImpact(i.impact),
+      startedAt: i.started_at,
+      updateCount: i.incident_updates?.length ?? 0,
+    })),
+  };
+}
+
+function buildFallbackLiveData(config: ServiceConfig): LiveServiceData {
+  return {
+    id: config.slug,
+    name: config.name,
+    slug: config.slug,
+    category: config.category,
+    currentStatus: "OPERATIONAL",
+    statusPageUrl: config.statusPageUrl,
+    logoUrl: config.logoUrl || null,
+    lastPolledAt: null,
+    incidentCount: 0,
+    latestIncident: null,
+    monitoringCount: 0,
+    latestMonitoringIncident: null,
+    activeIncidents: [],
+  };
+}
+
+// ── Fetch all services (batched) ──
+
 export async function fetchAllServicesLive(): Promise<LiveServiceData[]> {
   const cached = getCached<LiveServiceData[]>("live:all");
   if (cached) return cached;
 
-  // Fetch all statuspage services in parallel (batched to avoid overwhelming)
   const batchSize = 10;
   const results: LiveServiceData[] = [];
 
@@ -471,194 +678,15 @@ export async function fetchAllServicesLive(): Promise<LiveServiceData[]> {
     const batchResults = await Promise.allSettled(
       batch.map(async (config) => {
         if (config.sourceType === "AWS_HEALTH") {
-          const awsData = await fetchAwsHealth();
-          const allInc = awsData?.incidents ?? [];
-          const activeInc = allInc.filter((i) => !i.isResolved);
-          return {
-            id: config.slug,
-            name: config.name,
-            slug: config.slug,
-            category: config.category,
-            currentStatus: awsData?.status ?? "OPERATIONAL",
-            statusPageUrl: config.statusPageUrl,
-            logoUrl: config.logoUrl || null,
-            lastPolledAt: new Date().toISOString(),
-            incidentCount: activeInc.length,
-            latestIncident: activeInc[0]
-              ? {
-                  id: activeInc[0].id,
-                  title: activeInc[0].title,
-                  status: activeInc[0].status,
-                  impact: activeInc[0].impact,
-                  startedAt: activeInc[0].startedAt,
-                }
-              : null,
-            monitoringCount: 0,
-            latestMonitoringIncident: null,
-            components: awsData?.components,
-            activeIncidents: allInc.map((i) => ({
-              id: i.id,
-              title: i.title,
-              status: i.isResolved ? "RESOLVED" : i.status,
-              impact: i.impact,
-              startedAt: i.startedAt,
-              updateCount: 1,
-            })),
-          } satisfies LiveServiceData;
+          return buildAwsLiveData(config, await fetchAwsHealth());
         }
-
         if (config.sourceType === "GCP_STATUS") {
-          const gcpData = await fetchGcpStatus();
-          const affectedIds = new Set(
-            (gcpData?.activeIncidents ?? []).flatMap((i) => (i.affected_products ?? []).map((p) => p.id))
-          );
-          const gcpAllIncidents = [
-            ...(gcpData?.activeIncidents ?? []),
-            ...(gcpData?.incidents ?? []).filter((i) => !!i.end).slice(0, 10),
-          ];
-          return {
-            id: config.slug,
-            name: config.name,
-            slug: config.slug,
-            category: config.category,
-            currentStatus: gcpData?.status ?? "OPERATIONAL",
-            statusPageUrl: config.statusPageUrl,
-            logoUrl: config.logoUrl || null,
-            lastPolledAt: new Date().toISOString(),
-            incidentCount: gcpData?.activeIncidents.length ?? 0,
-            latestIncident: gcpData?.activeIncidents[0]
-              ? {
-                  id: gcpData.activeIncidents[0].id,
-                  title: gcpData.activeIncidents[0].external_desc,
-                  status: "INVESTIGATING",
-                  impact: gcpData.activeIncidents[0].severity === "high" ? "CRITICAL" : "MAJOR",
-                  startedAt: gcpData.activeIncidents[0].begin,
-                }
-              : null,
-            monitoringCount: 0,
-            latestMonitoringIncident: null,
-            components: (gcpData?.products ?? []).map((p) => ({
-              name: p.title,
-              status: affectedIds.has(p.id) ? "PARTIAL_OUTAGE" : "OPERATIONAL",
-            })),
-            activeIncidents: gcpAllIncidents.map((i) => ({
-              id: i.id,
-              title: i.external_desc,
-              status: i.end ? "RESOLVED" : "INVESTIGATING",
-              impact: i.severity === "high" ? "CRITICAL" : "MAJOR",
-              startedAt: i.begin,
-              updateCount: i.updates?.length ?? (i.most_recent_update ? 1 : 0),
-            })),
-          } satisfies LiveServiceData;
+          return buildGcpLiveData(config, await fetchGcpStatus());
         }
-
         if (config.sourceType === "AZURE_HTML") {
-          const azureData = await fetchAzureStatus();
-          return {
-            id: config.slug,
-            name: config.name,
-            slug: config.slug,
-            category: config.category,
-            currentStatus: azureData?.status ?? "OPERATIONAL",
-            statusPageUrl: config.statusPageUrl,
-            logoUrl: config.logoUrl || null,
-            lastPolledAt: new Date().toISOString(),
-            incidentCount: azureData?.components.filter((c) => c.status !== "OPERATIONAL").length ?? 0,
-            latestIncident: null,
-            monitoringCount: 0,
-            latestMonitoringIncident: null,
-            components: azureData?.components,
-            activeIncidents: [],
-          } satisfies LiveServiceData;
+          return buildAzureLiveData(config, await fetchAzureStatus());
         }
-
-        const data = await fetchStatuspageSummary(config.apiEndpoint);
-        if (!data) {
-          // API unreachable — assume operational rather than showing UNKNOWN
-          return {
-            id: config.slug,
-            name: config.name,
-            slug: config.slug,
-            category: config.category,
-            currentStatus: "OPERATIONAL",
-            statusPageUrl: config.statusPageUrl,
-            logoUrl: config.logoUrl || null,
-            lastPolledAt: null,
-            incidentCount: 0,
-            latestIncident: null,
-            monitoringCount: 0,
-            latestMonitoringIncident: null,
-            activeIncidents: [],
-          } satisfies LiveServiceData;
-        }
-
-        let status = mapStatuspageIndicator(data.status?.indicator ?? "none");
-        const allIncidents = data.incidents ?? [];
-        const unresolvedIncidents = allIncidents.filter((i) => !i.resolved_at);
-
-        // Split unresolved incidents: monitoring/none-impact are not truly active
-        const trulyActiveIncidents = unresolvedIncidents.filter(
-          (i) => i.status !== "monitoring" && i.impact !== "none"
-        );
-        const monitoringIncidents = unresolvedIncidents.filter(
-          (i) => i.status === "monitoring"
-        );
-
-        // Only override status for truly active incidents (not monitoring/none)
-        if (status === "OPERATIONAL" && trulyActiveIncidents.length > 0) {
-          const worstImpact = trulyActiveIncidents.reduce((worst, inc) => {
-            const order: Record<string, number> = { critical: 3, major: 2, minor: 1, none: 0 };
-            return (order[inc.impact] ?? 0) > (order[worst] ?? 0) ? inc.impact : worst;
-          }, "none");
-          if (worstImpact === "critical") status = "MAJOR_OUTAGE";
-          else if (worstImpact === "major") status = "PARTIAL_OUTAGE";
-          else if (worstImpact === "minor") status = "DEGRADED";
-        }
-
-        return {
-          id: config.slug,
-          name: config.name,
-          slug: config.slug,
-          category: config.category,
-          currentStatus: status,
-          statusPageUrl: config.statusPageUrl,
-          logoUrl: config.logoUrl || null,
-          lastPolledAt: new Date().toISOString(),
-          incidentCount: trulyActiveIncidents.length,
-          latestIncident: trulyActiveIncidents[0]
-            ? {
-                id: trulyActiveIncidents[0].id,
-                title: trulyActiveIncidents[0].name,
-                status: mapIncidentStatus(trulyActiveIncidents[0].status),
-                impact: mapIncidentImpact(trulyActiveIncidents[0].impact),
-                startedAt: trulyActiveIncidents[0].started_at,
-              }
-            : null,
-          monitoringCount: monitoringIncidents.length,
-          latestMonitoringIncident: monitoringIncidents[0]
-            ? {
-                id: monitoringIncidents[0].id,
-                title: monitoringIncidents[0].name,
-                status: mapIncidentStatus(monitoringIncidents[0].status),
-                impact: mapIncidentImpact(monitoringIncidents[0].impact),
-                startedAt: monitoringIncidents[0].started_at,
-              }
-            : null,
-          components: (data.components ?? [])
-            .filter((c) => !c.group)
-            .map((c) => ({
-              name: c.name,
-              status: mapComponentStatus(c.status),
-            })),
-          activeIncidents: allIncidents.map((i) => ({
-            id: i.id,
-            title: i.name,
-            status: mapIncidentStatus(i.status),
-            impact: mapIncidentImpact(i.impact),
-            startedAt: i.started_at,
-            updateCount: i.incident_updates?.length ?? 0,
-          })),
-        } satisfies LiveServiceData;
+        return buildStatuspageLiveData(config, await fetchStatuspageSummary(config.apiEndpoint));
       })
     );
 
@@ -667,29 +695,51 @@ export async function fetchAllServicesLive(): Promise<LiveServiceData[]> {
       if (result.status === "fulfilled") {
         results.push(result.value);
       } else {
-        // If a service fetch rejected, still include it with OPERATIONAL status
-        const config = batch[j];
-        results.push({
-          id: config.slug,
-          name: config.name,
-          slug: config.slug,
-          category: config.category,
-          currentStatus: "OPERATIONAL",
-          statusPageUrl: config.statusPageUrl,
-          logoUrl: config.logoUrl || null,
-          lastPolledAt: null,
-          incidentCount: 0,
-          latestIncident: null,
-          monitoringCount: 0,
-          latestMonitoringIncident: null,
-          activeIncidents: [],
-        });
+        results.push(buildFallbackLiveData(batch[j]));
       }
     }
   }
 
   setMemCache("live:all", results);
   return results;
+}
+
+// ── Fetch single service (for webhooks) ──
+
+export async function fetchSingleServiceLive(
+  slug: string,
+  options?: { bypassCache?: boolean }
+): Promise<LiveServiceData | null> {
+  const config = serviceConfigs.find((s) => s.slug === slug);
+  if (!config) return null;
+
+  if (!options?.bypassCache) {
+    const allCached = getCached<LiveServiceData[]>("live:all");
+    if (allCached) {
+      const found = allCached.find((s) => s.slug === slug);
+      if (found) return found;
+    }
+  }
+
+  if (config.sourceType === "AWS_HEALTH") {
+    return buildAwsLiveData(config, await fetchAwsHealth());
+  }
+  if (config.sourceType === "GCP_STATUS") {
+    return buildGcpLiveData(config, await fetchGcpStatus());
+  }
+  if (config.sourceType === "AZURE_HTML") {
+    return buildAzureLiveData(config, await fetchAzureStatus());
+  }
+  return buildStatuspageLiveData(config, await fetchStatuspageSummary(config.apiEndpoint));
+}
+
+// ── Find service config by status page URL (for webhook identification) ──
+
+export function findServiceConfigByStatusPageUrl(url: string): ServiceConfig | undefined {
+  const normalized = url.replace(/\/+$/, "").toLowerCase();
+  return serviceConfigs.find(
+    (s) => s.statusPageUrl.replace(/\/+$/, "").toLowerCase() === normalized
+  );
 }
 
 export async function fetchServiceDetailLive(slug: string): Promise<LiveServiceDetail | null> {
