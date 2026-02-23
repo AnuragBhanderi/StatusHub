@@ -7,14 +7,14 @@ export async function shouldSendEmail(
 ): Promise<boolean> {
   const now = new Date();
 
-  // Rule 1: Max 1 email per user per service per 30 minutes
-  const thirtyMinAgo = new Date(now.getTime() - 30 * 60 * 1000).toISOString();
+  // Rule 1: Max 1 email per user per service per 5 minutes
+  const fiveMinAgo = new Date(now.getTime() - 5 * 60 * 1000).toISOString();
   const { count: recentForService } = await adminClient
     .from("email_alert_log")
     .select("*", { count: "exact", head: true })
     .eq("user_id", userId)
     .eq("service_slug", serviceSlug)
-    .gte("sent_at", thirtyMinAgo);
+    .gte("sent_at", fiveMinAgo);
 
   if ((recentForService ?? 0) > 0) return false;
 
