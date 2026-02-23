@@ -205,6 +205,8 @@ function buildEmailParams(event: DetectedEvent, statusHubUrl: string): Notificat
       newStatus: event.newStatus || "UNKNOWN",
       incidentTitle: event.incidentTitle,
       statusHubUrl,
+      affectedComponents: event.affectedComponents,
+      latestUpdateBody: event.latestUpdateBody,
     };
   }
 
@@ -216,6 +218,10 @@ function buildEmailParams(event: DetectedEvent, statusHubUrl: string): Notificat
     incidentImpact: event.incidentImpact || "NONE",
     oldImpact: event.oldImpact,
     statusHubUrl,
+    affectedComponents: event.affectedComponents,
+    latestUpdateBody: event.latestUpdateBody,
+    incidentStatus: event.incidentStatus,
+    incidentStartedAt: event.incidentStartedAt,
   };
 }
 

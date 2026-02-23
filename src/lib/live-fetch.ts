@@ -38,6 +38,7 @@ export interface LiveServiceData {
     impact: string;
     startedAt: string;
     updateCount: number;
+    latestUpdateBody?: string;
   }[];
 }
 
@@ -493,6 +494,7 @@ function buildAwsLiveData(config: ServiceConfig, awsData: AwsHealthResult | null
       impact: i.impact,
       startedAt: i.startedAt,
       updateCount: 1,
+      latestUpdateBody: i.description || undefined,
     })),
   };
 }
@@ -537,6 +539,7 @@ function buildGcpLiveData(config: ServiceConfig, gcpData: GcpResult | null): Liv
       impact: i.severity === "high" ? "CRITICAL" : "MAJOR",
       startedAt: i.begin,
       updateCount: i.updates?.length ?? (i.most_recent_update ? 1 : 0),
+      latestUpdateBody: i.most_recent_update?.text || i.updates?.[0]?.text || undefined,
     })),
   };
 }
@@ -642,6 +645,7 @@ function buildStatuspageLiveData(config: ServiceConfig, data: StatuspageSummary 
       impact: mapIncidentImpact(i.impact),
       startedAt: i.started_at,
       updateCount: i.incident_updates?.length ?? 0,
+      latestUpdateBody: i.incident_updates?.[0]?.body || undefined,
     })),
   };
 }

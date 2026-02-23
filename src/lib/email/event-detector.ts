@@ -27,6 +27,10 @@ export interface DetectedEvent {
   incidentStatus?: string;
   incidentImpact?: string;
   oldImpact?: string;
+  // Rich context fields
+  affectedComponents?: { name: string; status: string }[];
+  latestUpdateBody?: string;
+  incidentStartedAt?: string;
 }
 
 const STATUS_TO_EVENT: Record<string, NotificationEventType> = {
@@ -66,6 +70,9 @@ export function detectEvents(
   const oldStatus = prevSnapshot?.status ?? "OPERATIONAL";
   const newStatus = service.currentStatus;
 
+  // Shared context: non-operational components
+  const affectedComponents = service.components?.filter((c) => c.status !== "OPERATIONAL");
+
   // ── Status-level detection ──
   if (oldStatus !== newStatus) {
     if (newStatus === "OPERATIONAL") {
@@ -77,6 +84,7 @@ export function detectEvents(
           serviceName: service.name,
           oldStatus,
           newStatus,
+          affectedComponents,
         });
       } else {
         events.push({
@@ -85,6 +93,7 @@ export function detectEvents(
           serviceName: service.name,
           oldStatus,
           newStatus,
+          affectedComponents,
         });
       }
     } else {
@@ -96,6 +105,8 @@ export function detectEvents(
           serviceName: service.name,
           oldStatus,
           newStatus,
+          affectedComponents,
+          latestUpdateBody: service.activeIncidents[0]?.latestUpdateBody,
         });
       }
     }
@@ -124,6 +135,9 @@ export function detectEvents(
         incidentTitle: inc.title,
         incidentStatus: inc.status,
         incidentImpact: inc.impact,
+        affectedComponents,
+        latestUpdateBody: inc.latestUpdateBody,
+        incidentStartedAt: inc.startedAt,
       });
       continue;
     }
@@ -138,6 +152,9 @@ export function detectEvents(
         incidentTitle: inc.title,
         incidentStatus: inc.status,
         incidentImpact: inc.impact,
+        affectedComponents,
+        latestUpdateBody: inc.latestUpdateBody,
+        incidentStartedAt: inc.startedAt,
       });
       continue;
     }
@@ -156,6 +173,9 @@ export function detectEvents(
         incidentStatus: inc.status,
         incidentImpact: inc.impact,
         oldImpact: prev.impact,
+        affectedComponents,
+        latestUpdateBody: inc.latestUpdateBody,
+        incidentStartedAt: inc.startedAt,
       });
       continue;
     }
@@ -171,6 +191,9 @@ export function detectEvents(
         incidentStatus: inc.status,
         incidentImpact: inc.impact,
         oldImpact: prev.impact,
+        affectedComponents,
+        latestUpdateBody: inc.latestUpdateBody,
+        incidentStartedAt: inc.startedAt,
       });
       continue;
     }
@@ -185,6 +208,9 @@ export function detectEvents(
         incidentTitle: inc.title,
         incidentStatus: inc.status,
         incidentImpact: inc.impact,
+        affectedComponents,
+        latestUpdateBody: inc.latestUpdateBody,
+        incidentStartedAt: inc.startedAt,
       });
     }
   }
