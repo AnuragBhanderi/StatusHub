@@ -52,18 +52,23 @@ export default function AppHeader({ t, showBeta, rightContent }: AppHeaderProps)
                 width: 30,
                 height: 30,
                 borderRadius: 8,
-                background: `linear-gradient(135deg, ${t.accentPrimary} 0%, ${t.accentGreen} 100%)`,
+                background: `linear-gradient(135deg, ${t.accentPrimary} 0%, ${t.accentSecondary} 50%, ${t.accentGreen} 100%)`,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                color: "#fff",
-                fontSize: 14,
-                fontWeight: 700,
-                fontFamily: "var(--font-mono)",
                 flexShrink: 0,
+                boxShadow: `0 2px 8px ${t.accentPrimary}25`,
               }}
             >
-              S
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M2 12h4l3-7 5 14 3-7h5"
+                  stroke="#fff"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
             </div>
             <span
               className="sh-header-logo"
