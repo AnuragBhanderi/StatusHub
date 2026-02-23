@@ -151,20 +151,22 @@ export default function LandingPage() {
         t={t}
         rightContent={
           <nav className="sh-landing-nav" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <Link
-              href="/dashboard"
-              style={{
-                fontSize: 13,
-                fontWeight: 500,
-                color: t.textSecondary,
-                textDecoration: "none",
-                padding: "6px 14px",
-                borderRadius: 8,
-                transition: "color 0.15s",
-              }}
-            >
-              Dashboard
-            </Link>
+            {!(isSupabaseEnabled && user) && (
+              <Link
+                href="/dashboard"
+                style={{
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: t.textSecondary,
+                  textDecoration: "none",
+                  padding: "6px 14px",
+                  borderRadius: 8,
+                  transition: "color 0.15s",
+                }}
+              >
+                Dashboard
+              </Link>
+            )}
             <a
               href="#features"
               className="sh-hide-mobile"

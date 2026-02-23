@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import Link from "next/link";
 import type { Theme } from "@/config/themes";
 
 interface AppHeaderProps {
@@ -36,35 +37,46 @@ export default function AppHeader({ t, showBeta, rightContent }: AppHeaderProps)
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div
+          <Link
+            href="/"
             style={{
-              width: 30,
-              height: 30,
-              borderRadius: 8,
-              background: `linear-gradient(135deg, ${t.accentPrimary} 0%, ${t.accentGreen} 100%)`,
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
-              color: "#fff",
-              fontSize: 14,
-              fontWeight: 700,
-              fontFamily: "var(--font-mono)",
-              flexShrink: 0,
+              gap: 10,
+              textDecoration: "none",
+              cursor: "pointer",
             }}
           >
-            S
-          </div>
-          <span
-            className="sh-header-logo"
-            style={{
-              fontWeight: 700,
-              fontSize: 18,
-              color: t.text,
-              letterSpacing: -0.5,
-            }}
-          >
-            StatusHub
-          </span>
+            <div
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: 8,
+                background: `linear-gradient(135deg, ${t.accentPrimary} 0%, ${t.accentGreen} 100%)`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#fff",
+                fontSize: 14,
+                fontWeight: 700,
+                fontFamily: "var(--font-mono)",
+                flexShrink: 0,
+              }}
+            >
+              S
+            </div>
+            <span
+              className="sh-header-logo"
+              style={{
+                fontWeight: 700,
+                fontSize: 18,
+                color: t.text,
+                letterSpacing: -0.5,
+              }}
+            >
+              StatusHub
+            </span>
+          </Link>
           {showBeta && (
             <span
               className="sh-header-beta"
