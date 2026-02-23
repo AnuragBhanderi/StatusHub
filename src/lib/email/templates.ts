@@ -115,6 +115,7 @@ function emailShell(opts: {
   sectionLabel: string;
   serviceName: string;
   contentHtml: string;
+  missedUpdatesHtml?: string;
   serviceUrl: string;
   settingsUrl: string;
 }): string {
@@ -160,6 +161,8 @@ function emailShell(opts: {
 
         <!-- Content -->
         ${opts.contentHtml}
+
+        ${opts.missedUpdatesHtml || ""}
 
         <!-- CTA Button -->
         <tr><td style="padding:0 28px 28px;">
@@ -364,9 +367,39 @@ function incidentContent(params: IncidentEventParams): string {
         </td></tr>`;
 }
 
+// ── Missed updates section ──
+
+function buildMissedUpdatesHtml(missed: { emoji: string; label: string; detail: string }[]): string {
+  if (!missed || missed.length === 0) return "";
+
+  const rows = missed.map((m) => `
+            <tr>
+              <td style="padding:6px 0;font-size:13px;color:#52525b;line-height:1.4;">
+                <span style="margin-right:6px;">${m.emoji}</span>
+                <strong>${m.label}</strong>${m.detail ? ` &mdash; <span style="color:#71717a;">${m.detail}</span>` : ""}
+              </td>
+            </tr>`).join("");
+
+  return `
+        <!-- Missed Updates -->
+        <tr><td style="padding:0 28px 20px;">
+          <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#fafaf9;border:1px solid #e7e5e4;border-radius:10px;padding:14px 16px;">
+            <tr><td style="padding-bottom:8px;">
+              <p style="margin:0;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#a8a29e;">
+                While you were away
+              </p>
+            </td></tr>
+            ${rows}
+          </table>
+        </td></tr>`;
+}
+
 // ── Main factory ──
 
-export function notificationEmail(params: NotificationEmailParams): {
+export function notificationEmail(
+  params: NotificationEmailParams,
+  missedUpdates?: { emoji: string; label: string; detail: string }[]
+): {
   subject: string;
   html: string;
   text: string;
@@ -426,6 +459,9 @@ export function notificationEmail(params: NotificationEmailParams): {
     ? statusChangeContent(params)
     : incidentContent(params);
 
+  // Missed updates section
+  const missedUpdatesHtml = buildMissedUpdatesHtml(missedUpdates || []);
+
   // Full HTML
   const html = emailShell({
     headerGradient,
@@ -433,6 +469,7 @@ export function notificationEmail(params: NotificationEmailParams): {
     sectionLabel: isStatusEvent(params) ? "Service Status Update" : "Incident Alert",
     serviceName: params.serviceName,
     contentHtml,
+    missedUpdatesHtml,
     serviceUrl,
     settingsUrl,
   });
@@ -465,6 +502,14 @@ View on StatusHub: ${serviceUrl}
 
 ---
 Manage notifications: ${settingsUrl}`;
+  }
+
+  // Append missed updates to plain text
+  if (missedUpdates && missedUpdates.length > 0) {
+    const missedText = missedUpdates
+      .map((m) => `  ${m.emoji} ${m.label}${m.detail ? ` — ${m.detail}` : ""}`)
+      .join("\n");
+    text += `\n\nWhile you were away:\n${missedText}`;
   }
 
   return { subject, html, text };

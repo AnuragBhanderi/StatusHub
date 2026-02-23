@@ -20,6 +20,20 @@ export interface ProcessServiceResult {
   emailsSent: number;
 }
 
+interface PendingEvent {
+  event_type: string;
+  event_data: {
+    eventType: string;
+    serviceName: string;
+    serviceSlug: string;
+    oldStatus?: string;
+    newStatus?: string;
+    incidentTitle?: string;
+    incidentImpact?: string;
+    oldImpact?: string;
+  };
+}
+
 export async function processServiceEvents(
   adminClient: SupabaseClient,
   service: LiveServiceData,
@@ -81,10 +95,41 @@ export async function processServiceEvents(
         if (!pref.email_address) continue;
 
         const canSend = await shouldSendEmail(adminClient, pref.user_id, event.serviceSlug);
-        if (!canSend) continue;
 
+        if (!canSend) {
+          // Queue this event for the next email
+          await adminClient.from("pending_notification_events").insert({
+            user_id: pref.user_id,
+            service_slug: event.serviceSlug,
+            event_type: event.eventType,
+            event_data: {
+              eventType: event.eventType,
+              serviceName: event.serviceName,
+              serviceSlug: event.serviceSlug,
+              oldStatus: event.oldStatus,
+              newStatus: event.newStatus,
+              incidentTitle: event.incidentTitle,
+              incidentImpact: event.incidentImpact,
+              oldImpact: event.oldImpact,
+            },
+          });
+          continue;
+        }
+
+        // Fetch any pending events for this user + service
+        const { data: pendingRows } = await adminClient
+          .from("pending_notification_events")
+          .select("id, event_type, event_data, created_at")
+          .eq("user_id", pref.user_id)
+          .eq("service_slug", event.serviceSlug)
+          .order("created_at", { ascending: true });
+
+        const pendingEvents: PendingEvent[] = (pendingRows || []) as PendingEvent[];
+
+        // Build and send email with missed updates
         const emailParams = buildEmailParams(event, statusHubUrl);
-        const { subject, html, text } = notificationEmail(emailParams);
+        const missedSummaries = pendingEvents.map((p) => formatMissedEvent(p));
+        const { subject, html, text } = notificationEmail(emailParams, missedSummaries);
 
         try {
           await transporter.sendMail({
@@ -106,6 +151,15 @@ export async function processServiceEvents(
             new_status: event.newStatus || event.eventType,
             event_type: event.eventType,
           });
+
+          // Clear pending events after successful send
+          if (pendingRows && pendingRows.length > 0) {
+            const pendingIds = pendingRows.map((r: { id: string }) => r.id);
+            await adminClient
+              .from("pending_notification_events")
+              .delete()
+              .in("id", pendingIds);
+          }
 
           emailsSent++;
         } catch (err) {
@@ -163,4 +217,47 @@ function buildEmailParams(event: DetectedEvent, statusHubUrl: string): Notificat
     oldImpact: event.oldImpact,
     statusHubUrl,
   };
+}
+
+const EVENT_LABEL_SHORT: Record<string, string> = {
+  major_outage: "Major Outage",
+  partial_outage: "Partial Outage",
+  degraded: "Degraded",
+  maintenance: "Maintenance",
+  recovery: "Recovered",
+  maintenance_completed: "Maintenance Done",
+  new_incident: "New Incident",
+  incident_update: "Incident Update",
+  incident_resolved: "Resolved",
+  incident_escalated: "Escalated",
+  incident_de_escalated: "De-escalated",
+};
+
+const EVENT_EMOJI_SHORT: Record<string, string> = {
+  major_outage: "\ud83d\udd34",
+  partial_outage: "\ud83d\udfe0",
+  degraded: "\u26a0\ufe0f",
+  maintenance: "\ud83d\udd27",
+  recovery: "\u2705",
+  maintenance_completed: "\u2705",
+  new_incident: "\ud83d\udea8",
+  incident_update: "\ud83d\udcdd",
+  incident_resolved: "\u2705",
+  incident_escalated: "\u2b06\ufe0f",
+  incident_de_escalated: "\u2b07\ufe0f",
+};
+
+function formatMissedEvent(pending: PendingEvent): { emoji: string; label: string; detail: string } {
+  const emoji = EVENT_EMOJI_SHORT[pending.event_type] || "\u2022";
+  const label = EVENT_LABEL_SHORT[pending.event_type] || pending.event_type;
+  const data = pending.event_data;
+
+  let detail = "";
+  if (data.oldStatus && data.newStatus) {
+    detail = `${data.oldStatus} \u2192 ${data.newStatus}`;
+  } else if (data.incidentTitle) {
+    detail = data.incidentTitle;
+  }
+
+  return { emoji, label, detail };
 }
