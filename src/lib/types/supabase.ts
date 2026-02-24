@@ -3,7 +3,6 @@ export interface UserPreferences {
   user_id: string;
   theme: string;
   compact: boolean;
-  my_stack: string[];
   created_at: string;
   updated_at: string;
 }
@@ -81,7 +80,6 @@ export interface Database {
           user_id: string;
           theme?: string;
           compact?: boolean;
-          my_stack?: string[];
           created_at?: string;
           updated_at?: string;
         };
@@ -90,7 +88,6 @@ export interface Database {
           user_id?: string;
           theme?: string;
           compact?: boolean;
-          my_stack?: string[];
           created_at?: string;
           updated_at?: string;
         };
