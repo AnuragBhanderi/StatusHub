@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getUserPlan } from "@/lib/subscription";
+import { getUserPlan, getPromoInfo } from "@/lib/subscription";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,7 @@ export async function GET() {
   }
 
   // Fetch all in parallel
-  const [prefsResult, notifResult, projectsResult, plan] = await Promise.all([
+  const [prefsResult, notifResult, projectsResult, plan, promoInfo] = await Promise.all([
     supabase
       .from("user_preferences")
       .select("*")
@@ -32,6 +32,7 @@ export async function GET() {
       .order("is_default", { ascending: false })
       .order("created_at", { ascending: true }),
     getUserPlan(supabase, user.id),
+    getPromoInfo(supabase, user.id),
   ]);
 
   return NextResponse.json({
@@ -40,6 +41,7 @@ export async function GET() {
     notificationPreferences: notifResult.data || null,
     projects: projectsResult.data || [],
     plan,
+    promoInfo,
   });
 }
 

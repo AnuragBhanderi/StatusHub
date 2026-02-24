@@ -43,7 +43,7 @@ const THEME_ICONS: Record<string, { label: string; icon: (color: string) => Reac
 };
 
 export default function UserMenu({ t }: UserMenuProps) {
-  const { user, signOut, plan, preferences: { theme }, setTheme, notificationPrefs, saveNotificationPrefs, setShowUpgradeModal } = useUser();
+  const { user, signOut, plan, promoInfo, preferences: { theme }, setTheme, notificationPrefs, saveNotificationPrefs, setShowUpgradeModal } = useUser();
   const [open, setOpen] = useState(false);
   const [showNotifSettings, setShowNotifSettings] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -149,9 +149,9 @@ export default function UserMenu({ t }: UserMenuProps) {
                   style={{
                     fontSize: 9,
                     fontWeight: 700,
-                    color: plan === "pro" ? t.accentPrimary : t.textMuted,
-                    background: plan === "pro" ? `${t.accentPrimary}15` : t.tagBg,
-                    border: `1px solid ${plan === "pro" ? `${t.accentPrimary}30` : t.border}`,
+                    color: promoInfo?.isPromo ? t.accentSecondary : plan === "pro" ? t.accentPrimary : t.textMuted,
+                    background: promoInfo?.isPromo ? `${t.accentSecondary}15` : plan === "pro" ? `${t.accentPrimary}15` : t.tagBg,
+                    border: `1px solid ${promoInfo?.isPromo ? `${t.accentSecondary}30` : plan === "pro" ? `${t.accentPrimary}30` : t.border}`,
                     padding: "1px 6px",
                     borderRadius: 4,
                     fontFamily: "var(--font-mono)",
@@ -159,7 +159,7 @@ export default function UserMenu({ t }: UserMenuProps) {
                     letterSpacing: 0.5,
                   }}
                 >
-                  {plan === "pro" ? "Pro" : "Free"}
+                  {promoInfo?.isPromo ? "Trial" : plan === "pro" ? "Pro" : "Free"}
                 </span>
               </div>
               <div
@@ -172,6 +172,18 @@ export default function UserMenu({ t }: UserMenuProps) {
               >
                 {email}
               </div>
+              {promoInfo?.isPromo && promoInfo.trialEndsAt && (
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: t.accentSecondary,
+                    marginTop: 3,
+                    fontFamily: "var(--font-sans)",
+                  }}
+                >
+                  Pro trial: {Math.max(0, Math.ceil((new Date(promoInfo.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} days remaining
+                </div>
+              )}
             </div>
 
             {/* Theme switcher row */}

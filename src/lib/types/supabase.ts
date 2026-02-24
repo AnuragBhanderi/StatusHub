@@ -54,6 +54,8 @@ export interface Subscription {
   status: "active" | "cancelled" | "past_due" | "expired" | "paused";
   current_period_end: string | null;
   cancel_at: string | null;
+  is_promo: boolean;
+  promo_code: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -171,6 +173,8 @@ export interface Database {
           status?: "active" | "cancelled" | "past_due" | "expired" | "paused";
           current_period_end?: string | null;
           cancel_at?: string | null;
+          is_promo?: boolean;
+          promo_code?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -183,6 +187,8 @@ export interface Database {
           status?: "active" | "cancelled" | "past_due" | "expired" | "paused";
           current_period_end?: string | null;
           cancel_at?: string | null;
+          is_promo?: boolean;
+          promo_code?: string | null;
           created_at?: string;
           updated_at?: string;
         };

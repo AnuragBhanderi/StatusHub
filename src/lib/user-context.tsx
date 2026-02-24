@@ -12,7 +12,7 @@ import {
 import type { User, Session, SupabaseClient } from "@supabase/supabase-js";
 import type { ThemeKey } from "@/config/themes";
 import type { Project } from "@/lib/types/supabase";
-import type { Plan } from "@/lib/subscription";
+import type { Plan, PromoInfo } from "@/lib/subscription";
 
 // Event-based toast so user-context can fire toasts without being inside ToastProvider
 type ToastType = "error" | "success" | "info";
@@ -68,6 +68,7 @@ interface UserContextValue {
   setSort: (sort: "status" | "name" | "category") => void;
   // Projects (replaces My Stack)
   plan: Plan;
+  promoInfo: PromoInfo | null;
   projects: Project[];
   activeProjectId: string | null;
   activeProjectSlugs: string[];
@@ -121,6 +122,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   // Projects state (replaces myStack)
   const [plan, setPlan] = useState<Plan>("free");
+  const [promoInfo, setPromoInfo] = useState<PromoInfo | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProjectId, setActiveProjectIdState] = useState<string | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -188,6 +190,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
       if (data.plan) {
         setPlan(data.plan);
       }
+
+      // Load promo info
+      setPromoInfo(data.promoInfo || null);
 
       // Load projects
       if (data.projects && data.projects.length > 0) {
@@ -298,6 +303,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         }
         if (event === "SIGNED_OUT") {
           setPlan("free");
+          setPromoInfo(null);
           setProjects([]);
           setActiveProjectIdState(null);
           loadFromLocalStorage();
@@ -686,6 +692,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         setSort,
         // Projects
         plan,
+        promoInfo,
         projects,
         activeProjectId: activeProject?.id || null,
         activeProjectSlugs,

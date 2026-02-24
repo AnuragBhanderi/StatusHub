@@ -22,7 +22,7 @@ export async function POST() {
   }
 
   const siteUrl =
-    process.env.NEXT_PUBLIC_SITE_URL || "https://statushub-seven.vercel.app";
+    process.env.NEXT_PUBLIC_SITE_URL || "https://statushub.orphilia.com";
 
   const response = await fetch("https://api.lemonsqueezy.com/v1/checkouts", {
     method: "POST",

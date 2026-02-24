@@ -28,7 +28,7 @@ export async function POST() {
     );
   }
 
-  const statusHubUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://statushub-seven.vercel.app";
+  const statusHubUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://statushub.orphilia.com";
 
   const { subject, html, text } = notificationEmail(
     {

@@ -21,6 +21,9 @@ import AppFooter from "@/components/AppFooter";
 import SignInModal from "@/components/SignInModal";
 import LoadingState from "@/components/LoadingState";
 import ErrorState from "@/components/ErrorState";
+import WhatsNewModal from "@/components/WhatsNewModal";
+import WhatsNewBadge from "@/components/WhatsNewBadge";
+import { CHANGELOG, getLatestChangelogId, getUnseenChangelog, type ChangelogEntry } from "@/config/changelog";
 import { usePushNotifications } from "@/lib/hooks/use-push-notifications";
 import { onToast } from "@/lib/user-context";
 
@@ -72,6 +75,7 @@ function DashboardInner() {
     setSort: setSortMode,
     // Projects
     plan,
+    promoInfo,
     projects,
     activeProjectId,
     activeProjectSlugs,
@@ -98,6 +102,9 @@ function DashboardInner() {
   const [showSignIn, setShowSignIn] = useState(false);
   const [managingProject, setManagingProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
+  const [hasNewAnnouncement, setHasNewAnnouncement] = useState(false);
+  const [unseenEntries, setUnseenEntries] = useState<ChangelogEntry[]>([]);
   const searchRef = useRef<HTMLInputElement>(null);
   const lastFetchTimeRef = useRef(Date.now());
   const [countdown, setCountdown] = useState(180);
@@ -110,6 +117,33 @@ function DashboardInner() {
   useEffect(() => {
     return onToast((message, type) => showToast(message, type));
   }, [showToast]);
+
+  // Check for unseen changelog announcements
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const lastSeen = localStorage.getItem("statushub_changelog_last_seen");
+    const unseen = getUnseenChangelog(lastSeen);
+    if (unseen.length > 0) {
+      setUnseenEntries(unseen);
+      setHasNewAnnouncement(true);
+      const timer = setTimeout(() => setShowWhatsNew(true), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  const handleWhatsNewClose = useCallback(() => {
+    setShowWhatsNew(false);
+    setHasNewAnnouncement(false);
+    const latestId = getLatestChangelogId();
+    if (latestId) {
+      localStorage.setItem("statushub_changelog_last_seen", latestId);
+    }
+  }, []);
+
+  const handleWhatsNewOpen = useCallback(() => {
+    setUnseenEntries(CHANGELOG.slice(0, 1));
+    setShowWhatsNew(true);
+  }, []);
 
   // Keyboard shortcuts: Cmd/Ctrl+K to focus search, Esc to close detail
   useEffect(() => {
@@ -138,7 +172,44 @@ function DashboardInner() {
     if (serviceParam) {
       setSelectedSlug(serviceParam);
     }
+
+    // Handle promo code from URL
+    const promoParam = params.get("promo");
+    if (promoParam) {
+      // Store promo code to redeem after auth is ready
+      sessionStorage.setItem("statushub_pending_promo", promoParam);
+      // Clean URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete("promo");
+      window.history.replaceState({}, "", url.pathname + url.search);
+    }
   }, []);
+
+  // Redeem pending promo code after user signs in
+  useEffect(() => {
+    if (!user) return;
+    const pendingPromo = sessionStorage.getItem("statushub_pending_promo");
+    if (!pendingPromo) return;
+    sessionStorage.removeItem("statushub_pending_promo");
+
+    fetch("/api/promo/activate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: pendingPromo }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          showToast("Pro trial activated!", "success");
+          setTimeout(() => window.location.reload(), 1500);
+        } else {
+          showToast(data.error || "Failed to redeem promo code", "error");
+        }
+      })
+      .catch(() => {
+        showToast("Failed to redeem promo code", "error");
+      });
+  }, [user, showToast]);
 
   // Fetch live data from API
   const fetchServices = useCallback(async () => {
@@ -281,6 +352,15 @@ function DashboardInner() {
               gap: 10,
             }}
           >
+            {/* What's New badge */}
+            {!loading && (
+              <WhatsNewBadge
+                t={t}
+                hasNew={hasNewAnnouncement}
+                onClick={handleWhatsNewOpen}
+              />
+            )}
+
             {/* Live indicator */}
             {!loading && (
               <div
@@ -343,8 +423,8 @@ function DashboardInner() {
               />
             )}
 
-            {/* Upgrade button for free plan */}
-            {isSignedIn && plan === "free" && (
+            {/* Upgrade button for free plan (hide if on promo trial) */}
+            {isSignedIn && plan === "free" && !promoInfo?.isPromo && (
               <button
                 onClick={() => setShowUpgradeModal(true)}
                 style={{
@@ -905,6 +985,11 @@ function DashboardInner() {
 
       {/* Upgrade Modal */}
       {showUpgradeModal && <UpgradeModal t={t} onClose={() => setShowUpgradeModal(false)} />}
+
+      {/* What's New Modal */}
+      {showWhatsNew && unseenEntries.length > 0 && (
+        <WhatsNewModal t={t} entries={unseenEntries} onClose={handleWhatsNewClose} />
+      )}
 
       {/* Project Manager Modal */}
       {managingProject && activeProjectId && (() => {

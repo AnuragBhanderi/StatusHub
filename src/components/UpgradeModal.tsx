@@ -34,22 +34,35 @@ const PRO_FEATURES: PlanFeature[] = [
 ];
 
 export default function UpgradeModal({ t, onClose }: UpgradeModalProps) {
-  const [loading, setLoading] = useState(false);
+  const [showPromo, setShowPromo] = useState(false);
+  const [promoCode, setPromoCode] = useState("");
+  const [promoLoading, setPromoLoading] = useState(false);
+  const [promoError, setPromoError] = useState("");
+  const [promoSuccess, setPromoSuccess] = useState(false);
 
-  async function handleUpgrade() {
-    setLoading(true);
+  async function handlePromoRedeem() {
+    if (!promoCode.trim()) return;
+    setPromoLoading(true);
+    setPromoError("");
     try {
-      const res = await fetch("/api/checkout", { method: "POST" });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.url) {
-          window.location.href = data.url;
-          return;
-        }
+      const res = await fetch("/api/promo/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: promoCode.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setPromoSuccess(true);
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else {
+        setPromoError(data.error || "Failed to redeem code");
       }
-      setLoading(false);
     } catch {
-      setLoading(false);
+      setPromoError("Network error. Please try again.");
+    } finally {
+      setPromoLoading(false);
     }
   }
 
@@ -212,7 +225,7 @@ export default function UpgradeModal({ t, onClose }: UpgradeModalProps) {
             boxShadow: `0 0 24px ${t.accentPrimary}12`,
             position: "relative",
           }}>
-            {/* Popular badge */}
+            {/* Coming Soon badge */}
             <div style={{
               position: "absolute",
               top: -1,
@@ -227,7 +240,7 @@ export default function UpgradeModal({ t, onClose }: UpgradeModalProps) {
               letterSpacing: 0.5,
               textTransform: "uppercase",
             }}>
-              Popular
+              Coming Soon
             </div>
 
             <div style={{ marginBottom: 14 }}>
@@ -258,33 +271,27 @@ export default function UpgradeModal({ t, onClose }: UpgradeModalProps) {
               ))}
             </div>
 
-            <button
-              onClick={handleUpgrade}
-              disabled={loading}
+            <div
               style={{
                 marginTop: 16,
                 padding: "9px 0",
                 borderRadius: 9,
-                border: "none",
-                background: `linear-gradient(135deg, ${t.accentPrimary}, ${t.accentSecondary})`,
-                color: "#fff",
+                border: `1px solid ${t.accentPrimary}30`,
+                background: `${t.accentPrimary}08`,
+                textAlign: "center",
                 fontSize: 12,
                 fontWeight: 700,
-                cursor: loading ? "wait" : "pointer",
+                color: t.accentPrimary,
                 fontFamily: "var(--font-sans)",
-                transition: "all 0.2s",
-                opacity: loading ? 0.7 : 1,
-                boxShadow: `0 2px 12px ${t.accentPrimary}35`,
+                opacity: 0.8,
               }}
-              onMouseEnter={(e) => { if (!loading) e.currentTarget.style.boxShadow = `0 4px 20px ${t.accentPrimary}50`; }}
-              onMouseLeave={(e) => { e.currentTarget.style.boxShadow = `0 2px 12px ${t.accentPrimary}35`; }}
             >
-              {loading ? "Redirecting..." : "Upgrade"}
-            </button>
+              Coming Soon
+            </div>
           </div>
         </div>
 
-        {/* Dismiss */}
+        {/* Dismiss + Promo */}
         <div style={{ padding: "8px 20px 20px", textAlign: "center" }}>
           <button
             onClick={onClose}
@@ -304,6 +311,98 @@ export default function UpgradeModal({ t, onClose }: UpgradeModalProps) {
           >
             Maybe later
           </button>
+
+          {!showPromo && !promoSuccess && (
+            <div style={{ marginTop: 4 }}>
+              <button
+                onClick={() => setShowPromo(true)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: t.textMuted,
+                  fontSize: 11,
+                  cursor: "pointer",
+                  fontFamily: "var(--font-sans)",
+                  padding: "4px 8px",
+                  textDecoration: "underline",
+                  textUnderlineOffset: 2,
+                  transition: "color 0.15s",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = t.accentPrimary; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = t.textMuted; }}
+              >
+                Have a promo code?
+              </button>
+            </div>
+          )}
+
+          {showPromo && !promoSuccess && (
+            <div style={{ marginTop: 8, display: "flex", gap: 8, justifyContent: "center" }}>
+              <input
+                type="text"
+                placeholder="Enter code"
+                value={promoCode}
+                onChange={(e) => { setPromoCode(e.target.value); setPromoError(""); }}
+                onKeyDown={(e) => { if (e.key === "Enter") handlePromoRedeem(); }}
+                style={{
+                  flex: 1,
+                  maxWidth: 180,
+                  padding: "7px 12px",
+                  borderRadius: 8,
+                  border: `1px solid ${promoError ? "#ef4444" : t.border}`,
+                  background: t.bg,
+                  color: t.text,
+                  fontSize: 12,
+                  fontFamily: "var(--font-mono)",
+                  outline: "none",
+                  textTransform: "uppercase",
+                  letterSpacing: 1,
+                }}
+              />
+              <button
+                onClick={handlePromoRedeem}
+                disabled={promoLoading || !promoCode.trim()}
+                style={{
+                  padding: "7px 14px",
+                  borderRadius: 8,
+                  border: "none",
+                  background: t.accentPrimary,
+                  color: "#fff",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: promoLoading ? "wait" : "pointer",
+                  fontFamily: "var(--font-sans)",
+                  opacity: promoLoading || !promoCode.trim() ? 0.6 : 1,
+                  transition: "opacity 0.15s",
+                }}
+              >
+                {promoLoading ? "..." : "Apply"}
+              </button>
+            </div>
+          )}
+
+          {promoError && (
+            <div style={{
+              marginTop: 6,
+              fontSize: 11,
+              color: "#ef4444",
+              fontFamily: "var(--font-sans)",
+            }}>
+              {promoError}
+            </div>
+          )}
+
+          {promoSuccess && (
+            <div style={{
+              marginTop: 8,
+              fontSize: 12,
+              color: t.accentGreen,
+              fontWeight: 600,
+              fontFamily: "var(--font-sans)",
+            }}>
+              Pro trial activated! Reloading...
+            </div>
+          )}
         </div>
       </div>
     </div>
