@@ -105,6 +105,7 @@ function DashboardInner() {
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [hasNewAnnouncement, setHasNewAnnouncement] = useState(false);
   const [unseenEntries, setUnseenEntries] = useState<ChangelogEntry[]>([]);
+  const [sharedStack, setSharedStack] = useState<string[] | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const lastFetchTimeRef = useRef(Date.now());
   const [countdown, setCountdown] = useState(180);
@@ -171,6 +172,16 @@ function DashboardInner() {
     const serviceParam = params.get("service");
     if (serviceParam) {
       setSelectedSlug(serviceParam);
+    }
+
+    // Handle shared stack from URL
+    const stackParam = params.get("stack");
+    if (stackParam) {
+      const slugs = stackParam.split(",").filter(Boolean);
+      if (slugs.length > 0) {
+        setSharedStack(slugs);
+        setShowMyStack(true);
+      }
     }
 
     // Handle promo code from URL
@@ -270,7 +281,10 @@ function DashboardInner() {
 
   const filtered = useMemo(() => {
     let list = services;
-    if (showMyStack) list = list.filter((s) => activeProjectSlugs.includes(s.slug));
+    if (showMyStack) {
+      const stackSlugs = sharedStack || activeProjectSlugs;
+      list = list.filter((s) => stackSlugs.includes(s.slug));
+    }
     if (activeCategory !== "All")
       list = list.filter((s) => s.category === activeCategory);
     if (search) {
@@ -298,7 +312,7 @@ function DashboardInner() {
       operational: list.filter((s) => s.currentStatus === "OPERATIONAL" && s.monitoringCount === 0).sort(sorter),
       total: list.length,
     };
-  }, [search, activeCategory, showMyStack, activeProjectSlugs, services, sortMode]);
+  }, [search, activeCategory, showMyStack, activeProjectSlugs, sharedStack, services, sortMode]);
 
   const operational = services.filter(
     (s) => s.currentStatus === "OPERATIONAL"
@@ -412,10 +426,14 @@ function DashboardInner() {
                 onManageProject={() => setManagingProject(true)}
                 onShare={() => {
                   const ap = projects.find((p) => p.id === activeProjectId) || projects[0];
-                  const url = `${window.location.origin}/dashboard?project=${ap?.slug || ""}`;
-                  navigator.clipboard.writeText(url).then(() => {
-                    showToast("Project link copied!", "success");
-                  });
+                  if (ap && ap.service_slugs.length > 0) {
+                    const url = `${window.location.origin}/dashboard?stack=${ap.service_slugs.join(",")}`;
+                    navigator.clipboard.writeText(url).then(() => {
+                      showToast("Project link copied!", "success");
+                    });
+                  } else {
+                    showToast("Add services to your project first", "info");
+                  }
                 }}
                 showProjectFilter={showMyStack}
                 onToggleFilter={() => setShowMyStack(!showMyStack)}
