@@ -53,6 +53,12 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-K7NB1RF19N" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-K7NB1RF19N');`,
+          }}
+        />
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var t=localStorage.getItem("statushub_theme")||"dark";var m={"dark":"#09090b","light":"#fafafa","midnight":"#04040a"};document.documentElement.style.background=m[t]||m.dark;document.documentElement.style.colorScheme=t==="light"?"light":"dark"}catch(e){}})()`,
