@@ -66,6 +66,7 @@ export interface Project {
   slug: string;
   service_slugs: string[];
   is_default: boolean;
+  share_code: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -200,6 +201,7 @@ export interface Database {
           slug: string;
           service_slugs?: string[];
           is_default?: boolean;
+          share_code?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -210,6 +212,7 @@ export interface Database {
           slug?: string;
           service_slugs?: string[];
           is_default?: boolean;
+          share_code?: string | null;
           created_at?: string;
           updated_at?: string;
         };

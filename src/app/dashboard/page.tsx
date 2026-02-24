@@ -175,12 +175,25 @@ function DashboardInner() {
     }
 
     // Handle shared stack from URL
-    const stackParam = params.get("stack");
-    if (stackParam) {
-      const slugs = stackParam.split(",").filter(Boolean);
-      if (slugs.length > 0) {
-        setSharedStack(slugs);
-        setShowMyStack(true);
+    const shareCode = params.get("s");
+    if (shareCode) {
+      fetch(`/api/share/${shareCode}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.services && data.services.length > 0) {
+            setSharedStack(data.services);
+            setShowMyStack(true);
+          }
+        })
+        .catch(() => {});
+    } else {
+      const stackParam = params.get("stack");
+      if (stackParam) {
+        const slugs = stackParam.split(",").filter(Boolean);
+        if (slugs.length > 0) {
+          setSharedStack(slugs);
+          setShowMyStack(true);
+        }
       }
     }
 
@@ -427,10 +440,18 @@ function DashboardInner() {
                 onShare={() => {
                   const ap = projects.find((p) => p.id === activeProjectId) || projects[0];
                   if (ap && ap.service_slugs.length > 0) {
-                    const url = `${window.location.origin}/dashboard?stack=${ap.service_slugs.join(",")}`;
-                    navigator.clipboard.writeText(url).then(() => {
-                      showToast("Project link copied!", "success");
-                    });
+                    if (ap.share_code) {
+                      const url = `${window.location.origin}/dashboard?s=${ap.share_code}`;
+                      navigator.clipboard.writeText(url).then(() => {
+                        showToast("Project link copied!", "success");
+                      });
+                    } else {
+                      // Fallback for projects created before share_code was added
+                      const url = `${window.location.origin}/dashboard?stack=${ap.service_slugs.join(",")}`;
+                      navigator.clipboard.writeText(url).then(() => {
+                        showToast("Project link copied!", "success");
+                      });
+                    }
                   } else {
                     showToast("Add services to your project first", "info");
                   }

@@ -15,6 +15,15 @@ function generateSlug(name: string): string {
     .slice(0, 50) || "project";
 }
 
+function generateShareCode(): string {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let code = "";
+  for (let i = 0; i < 7; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return code;
+}
+
 export async function GET() {
   const supabase = await createClient();
   const {
@@ -31,6 +40,20 @@ export async function GET() {
     .eq("user_id", user.id)
     .order("is_default", { ascending: false })
     .order("created_at", { ascending: true });
+
+  // Backfill share_code for projects that don't have one
+  if (projects) {
+    for (const p of projects) {
+      if (!p.share_code) {
+        const code = generateShareCode();
+        await supabase
+          .from("projects")
+          .update({ share_code: code })
+          .eq("id", p.id);
+        p.share_code = code;
+      }
+    }
+  }
 
   return NextResponse.json({ projects: projects || [] });
 }
@@ -104,6 +127,7 @@ export async function POST(request: NextRequest) {
       slug,
       service_slugs: serviceSlugs,
       is_default: isFirst,
+      share_code: generateShareCode(),
     })
     .select()
     .single();
