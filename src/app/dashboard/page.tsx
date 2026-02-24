@@ -1078,6 +1078,7 @@ function DashboardInner() {
             onReorderServices={reorderProjectServices}
             onRemoveService={(slug, projectId) => removeServiceFromProject(slug, projectId)}
             onSetDefault={setDefaultProject}
+            onUpgrade={() => setShowUpgradeModal(true)}
             onClose={() => setManagingProject(false)}
             t={t}
           />

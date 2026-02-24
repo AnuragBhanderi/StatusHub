@@ -5,6 +5,8 @@ import type { Theme } from "@/config/themes";
 import type { Project } from "@/lib/types/supabase";
 import type { Plan } from "@/lib/subscription";
 import { getPlanLimits } from "@/lib/subscription";
+import { services as serviceConfigs } from "@/config/services";
+import LogoIcon from "./LogoIcon";
 
 interface ProjectManagerProps {
   project: Project;
@@ -14,9 +16,15 @@ interface ProjectManagerProps {
   onReorderServices: (projectId: string, newSlugs: string[]) => Promise<boolean>;
   onRemoveService: (slug: string, projectId: string) => void;
   onSetDefault: (id: string) => Promise<boolean>;
+  onUpgrade: () => void;
   onClose: () => void;
   t: Theme;
 }
+
+// Build a lookup map: slug → { name, logoUrl }
+const serviceMap = new Map(
+  serviceConfigs.map((s) => [s.slug, { name: s.name, logoUrl: s.logoUrl || null }])
+);
 
 export default function ProjectManager({
   project,
@@ -26,6 +34,7 @@ export default function ProjectManager({
   onReorderServices,
   onRemoveService,
   onSetDefault,
+  onUpgrade,
   onClose,
   t,
 }: ProjectManagerProps) {
@@ -61,56 +70,41 @@ export default function ProjectManager({
     setSaving(false);
   }
 
-  function handleDragStart(index: number) {
-    setDragIndex(index);
+  function moveService(fromIndex: number, toIndex: number) {
+    if (toIndex < 0 || toIndex >= serviceCount) return;
+    const newSlugs = [...project.service_slugs];
+    const [removed] = newSlugs.splice(fromIndex, 1);
+    newSlugs.splice(toIndex, 0, removed);
+    onReorderServices(project.id, newSlugs);
   }
 
+  // --- Drag handlers ---
+  function handleDragStart(index: number, e: React.DragEvent) {
+    setDragIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+  }
   function handleDragEnter(index: number) {
     dragCounter.current++;
     setDropIndex(index);
   }
-
   function handleDragLeave() {
     dragCounter.current--;
-    if (dragCounter.current <= 0) {
-      setDropIndex(null);
-      dragCounter.current = 0;
-    }
+    if (dragCounter.current <= 0) { setDropIndex(null); dragCounter.current = 0; }
   }
-
-  function handleDragOver(e: React.DragEvent) {
-    e.preventDefault();
-  }
-
+  function handleDragOver(e: React.DragEvent) { e.preventDefault(); }
   function handleDrop(targetIndex: number) {
-    if (dragIndex === null || dragIndex === targetIndex) {
-      setDragIndex(null);
-      setDropIndex(null);
-      dragCounter.current = 0;
-      return;
+    if (dragIndex !== null && dragIndex !== targetIndex) {
+      moveService(dragIndex, targetIndex);
     }
-
-    const newSlugs = [...project.service_slugs];
-    const [removed] = newSlugs.splice(dragIndex, 1);
-    newSlugs.splice(targetIndex, 0, removed);
-
-    onReorderServices(project.id, newSlugs);
-    setDragIndex(null);
-    setDropIndex(null);
-    dragCounter.current = 0;
+    setDragIndex(null); setDropIndex(null); dragCounter.current = 0;
   }
-
   function handleDragEnd() {
-    setDragIndex(null);
-    setDropIndex(null);
-    dragCounter.current = 0;
+    setDragIndex(null); setDropIndex(null); dragCounter.current = 0;
   }
 
   return (
     <div
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       style={{
         position: "fixed",
         inset: 0,
@@ -129,7 +123,7 @@ export default function ProjectManager({
           background: t.surface,
           border: `1px solid ${t.border}`,
           borderRadius: 16,
-          maxWidth: 420,
+          maxWidth: 440,
           width: "100%",
           boxShadow: t.shadowLg,
           overflow: "hidden",
@@ -140,7 +134,7 @@ export default function ProjectManager({
       >
         {/* Header */}
         <div style={{
-          padding: "24px 24px 0",
+          padding: "20px 24px 0",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -172,21 +166,10 @@ export default function ProjectManager({
           </button>
         </div>
 
-        <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 16, overflowY: "auto" }}>
+        <div style={{ padding: "16px 24px 24px", display: "flex", flexDirection: "column", gap: 14, overflowY: "auto" }}>
           {/* Name */}
           <div>
-            <label style={{
-              display: "block",
-              fontSize: 11,
-              fontWeight: 600,
-              color: t.textMuted,
-              fontFamily: "var(--font-mono)",
-              marginBottom: 6,
-              textTransform: "uppercase",
-              letterSpacing: 0.5,
-            }}>
-              Project Name
-            </label>
+            <SectionLabel t={t}>Project Name</SectionLabel>
             <div style={{ display: "flex", gap: 8 }}>
               <input
                 value={name}
@@ -203,9 +186,7 @@ export default function ProjectManager({
                   fontFamily: "var(--font-sans)",
                   outline: "none",
                 }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleRename();
-                }}
+                onKeyDown={(e) => { if (e.key === "Enter") handleRename(); }}
               />
               <button
                 onClick={handleRename}
@@ -229,144 +210,206 @@ export default function ProjectManager({
             </div>
           </div>
 
-          {/* Stats */}
-          <div style={{
-            display: "flex",
-            gap: 12,
-          }}>
+          {/* Stats row */}
+          <div style={{ display: "flex", gap: 10 }}>
+            {/* Service count */}
             <div style={{
               flex: 1,
-              padding: "12px 14px",
+              padding: "10px 12px",
               borderRadius: 10,
-              background: t.tagBg,
-              border: `1px solid ${isOverServiceLimit ? "#ef444430" : t.border}`,
+              background: isOverServiceLimit ? "#ef444406" : t.tagBg,
+              border: `1px solid ${isOverServiceLimit ? "#ef444425" : t.border}`,
             }}>
               <div style={{
-                fontSize: 20,
+                fontSize: 18,
                 fontWeight: 700,
                 color: isOverServiceLimit ? "#ef4444" : t.text,
                 fontFamily: "var(--font-mono)",
+                lineHeight: 1,
               }}>
                 {serviceCount}
-                <span style={{ fontSize: 12, color: isOverServiceLimit ? "#ef444480" : t.textMuted, fontWeight: 400 }}>/{limits.maxServicesPerProject}</span>
+                <span style={{ fontSize: 11, color: isOverServiceLimit ? "#ef444460" : t.textMuted, fontWeight: 400 }}>/{limits.maxServicesPerProject}</span>
               </div>
-              <div style={{
-                fontSize: 11,
-                color: t.textMuted,
-                fontFamily: "var(--font-sans)",
-                marginTop: 2,
-              }}>
+              <div style={{ fontSize: 10, color: t.textMuted, fontFamily: "var(--font-sans)", marginTop: 3 }}>
                 Services
               </div>
             </div>
+
+            {/* Default / Custom status */}
             <div style={{
               flex: 1,
-              padding: "12px 14px",
+              padding: "10px 12px",
               borderRadius: 10,
               background: t.tagBg,
               border: `1px solid ${t.border}`,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
             }}>
-              <div style={{
-                fontSize: 11,
-                fontWeight: 600,
-                color: project.is_default ? t.accentGreen : t.textMuted,
-                fontFamily: "var(--font-mono)",
-                textTransform: "uppercase",
-              }}>
-                {project.is_default ? "Default" : "Custom"}
-              </div>
-              {!project.is_default ? (
-                <button
-                  onClick={handleSetDefault}
-                  disabled={saving}
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    color: t.accentPrimary,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: saving ? "wait" : "pointer",
-                    fontFamily: "var(--font-sans)",
-                    padding: 0,
-                    marginTop: 4,
-                  }}
-                >
-                  Set as Default
-                </button>
+              {project.is_default ? (
+                <>
+                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: t.accentGreen, flexShrink: 0 }} />
+                    <span style={{ fontSize: 11, fontWeight: 600, color: t.accentGreen, fontFamily: "var(--font-mono)", textTransform: "uppercase" }}>Default</span>
+                  </div>
+                  <div style={{ fontSize: 10, color: t.textMuted, fontFamily: "var(--font-sans)", marginTop: 3 }}>
+                    {plan === "pro" ? "Pro" : "Free"} plan
+                  </div>
+                </>
               ) : (
-                <div style={{
-                  fontSize: 11,
-                  color: t.textMuted,
-                  fontFamily: "var(--font-sans)",
-                  marginTop: 4,
-                }}>
-                  {plan === "pro" ? "Pro Plan" : "Free Plan"}
-                </div>
+                <>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: t.textMuted, fontFamily: "var(--font-mono)", textTransform: "uppercase" }}>Custom</span>
+                  <button
+                    onClick={handleSetDefault}
+                    disabled={saving}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: t.accentPrimary,
+                      fontSize: 10,
+                      fontWeight: 600,
+                      cursor: saving ? "wait" : "pointer",
+                      fontFamily: "var(--font-sans)",
+                      padding: 0,
+                      marginTop: 3,
+                      textAlign: "left",
+                    }}
+                  >
+                    Set as default
+                  </button>
+                </>
               )}
             </div>
           </div>
 
-          {/* Services list — drag to reorder */}
+          {/* Upgrade nudge — shown when over any limit */}
+          {isOverServiceLimit && (
+            <button
+              onClick={() => { onClose(); onUpgrade(); }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                width: "100%",
+                padding: "10px 14px",
+                borderRadius: 10,
+                border: `1px solid ${t.accentPrimary}20`,
+                background: `linear-gradient(135deg, ${t.accentPrimary}06, ${t.accentSecondary}06)`,
+                cursor: "pointer",
+                transition: "all 0.15s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = `${t.accentPrimary}40`;
+                e.currentTarget.style.background = `linear-gradient(135deg, ${t.accentPrimary}10, ${t.accentSecondary}10)`;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = `${t.accentPrimary}20`;
+                e.currentTarget.style.background = `linear-gradient(135deg, ${t.accentPrimary}06, ${t.accentSecondary}06)`;
+              }}
+            >
+              <div style={{
+                width: 28,
+                height: 28,
+                borderRadius: 8,
+                background: `${t.accentPrimary}15`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill={t.accentPrimary} stroke="none">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+              </div>
+              <div style={{ flex: 1, textAlign: "left" }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: t.accentPrimary, fontFamily: "var(--font-sans)" }}>
+                  Upgrade to Pro
+                </div>
+                <div style={{ fontSize: 10, color: t.textMuted, fontFamily: "var(--font-sans)", marginTop: 1 }}>
+                  Get {getPlanLimits("pro").maxServicesPerProject} services per project and {getPlanLimits("pro").maxProjects} projects
+                </div>
+              </div>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={t.accentPrimary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.5 }}>
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+          )}
+
+          {/* Services list — reorderable */}
           {serviceCount > 0 && (
             <div>
-              <label style={{
-                display: "block",
-                fontSize: 11,
-                fontWeight: 600,
-                color: t.textMuted,
-                fontFamily: "var(--font-mono)",
-                marginBottom: 6,
-                textTransform: "uppercase",
-                letterSpacing: 0.5,
-              }}>
-                Services {isOverServiceLimit ? "(drag to prioritize)" : ""}
-              </label>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <SectionLabel t={t} noMargin>
+                  Services
+                </SectionLabel>
+                {isOverServiceLimit && (
+                  <span style={{
+                    fontSize: 9,
+                    fontWeight: 600,
+                    color: "#f59e0b",
+                    fontFamily: "var(--font-mono)",
+                    textTransform: "uppercase",
+                    letterSpacing: 0.3,
+                    padding: "2px 6px",
+                    borderRadius: 4,
+                    background: "#f59e0b12",
+                    border: "1px solid #f59e0b20",
+                  }}>
+                    Drag to prioritize
+                  </span>
+                )}
+              </div>
+
               <div style={{
                 display: "flex",
                 flexDirection: "column",
-                gap: 2,
+                gap: 0,
                 borderRadius: 10,
                 border: `1px solid ${t.border}`,
                 overflow: "hidden",
               }}>
                 {project.service_slugs.map((slug, index) => {
+                  const info = serviceMap.get(slug);
+                  const serviceName = info?.name || slug;
+                  const logoUrl = info?.logoUrl || null;
                   const isFrozen = isOverServiceLimit && index >= limits.maxServicesPerProject;
                   const isAtLimit = isOverServiceLimit && index === limits.maxServicesPerProject;
                   const isDragging = dragIndex === index;
                   const isDropTarget = dropIndex === index;
+                  const isFirst = index === 0;
+                  const isLast = index === serviceCount - 1;
 
                   return (
                     <div key={slug}>
-                      {/* Divider line at limit boundary */}
+                      {/* Limit divider */}
                       {isAtLimit && (
                         <div style={{
-                          padding: "4px 12px",
-                          background: "#ef444408",
-                          borderTop: "1px dashed #ef444440",
-                          borderBottom: "1px dashed #ef444410",
+                          padding: "5px 12px",
+                          background: `linear-gradient(90deg, #f59e0b08, transparent)`,
+                          borderTop: "1px dashed #f59e0b40",
                           display: "flex",
                           alignItems: "center",
                           gap: 6,
                         }}>
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                            <path d="M7 11V7a5 5 0 0110 0v4" />
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                            <path d="M12 9v4" /><path d="M12 17h.01" />
+                            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
                           </svg>
                           <span style={{
                             fontSize: 9,
-                            fontWeight: 700,
-                            color: "#ef4444",
-                            fontFamily: "var(--font-mono)",
-                            textTransform: "uppercase",
-                            letterSpacing: 0.5,
+                            fontWeight: 600,
+                            color: "#f59e0b",
+                            fontFamily: "var(--font-sans)",
                           }}>
-                            Below this: no email alerts (free limit: {limits.maxServicesPerProject})
+                            Below: no email alerts ({plan} plan limit: {limits.maxServicesPerProject})
                           </span>
                         </div>
                       )}
+
+                      {/* Service row */}
                       <div
                         draggable
-                        onDragStart={() => handleDragStart(index)}
+                        onDragStart={(e) => handleDragStart(index, e)}
                         onDragEnter={() => handleDragEnter(index)}
                         onDragLeave={handleDragLeave}
                         onDragOver={handleDragOver}
@@ -375,53 +418,136 @@ export default function ProjectManager({
                         style={{
                           display: "flex",
                           alignItems: "center",
-                          gap: 8,
-                          padding: "7px 10px",
+                          gap: 10,
+                          padding: "8px 10px",
                           background: isDropTarget
-                            ? `${t.accentPrimary}12`
+                            ? `${t.accentPrimary}10`
                             : isFrozen
-                              ? `${t.tagBg}`
+                              ? `${t.tagBg}80`
                               : "transparent",
-                          opacity: isDragging ? 0.4 : 1,
+                          opacity: isDragging ? 0.35 : 1,
                           cursor: "grab",
-                          borderTop: isDropTarget ? `2px solid ${t.accentPrimary}` : "2px solid transparent",
-                          transition: "background 0.1s",
+                          borderTop: index > 0 && !isAtLimit ? `1px solid ${t.border}30` : "none",
+                          transition: "background 0.1s, opacity 0.15s",
+                          position: "relative",
                         }}
                       >
-                        {/* Drag handle */}
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={t.textMuted} strokeWidth="2" style={{ flexShrink: 0, opacity: 0.4 }}>
-                          <line x1="8" y1="6" x2="8" y2="6.01" />
-                          <line x1="16" y1="6" x2="16" y2="6.01" />
-                          <line x1="8" y1="12" x2="8" y2="12.01" />
-                          <line x1="16" y1="12" x2="16" y2="12.01" />
-                          <line x1="8" y1="18" x2="8" y2="18.01" />
-                          <line x1="16" y1="18" x2="16" y2="18.01" />
-                        </svg>
+                        {/* Drop indicator line */}
+                        {isDropTarget && !isDragging && (
+                          <div style={{
+                            position: "absolute",
+                            top: -1,
+                            left: 8,
+                            right: 8,
+                            height: 2,
+                            borderRadius: 1,
+                            background: t.accentPrimary,
+                          }} />
+                        )}
 
-                        {/* Service name */}
+                        {/* Position number */}
+                        <span style={{
+                          width: 18,
+                          textAlign: "center",
+                          fontSize: 10,
+                          fontWeight: 600,
+                          color: isFrozen ? t.textMuted : t.textSecondary,
+                          fontFamily: "var(--font-mono)",
+                          opacity: isFrozen ? 0.5 : 0.4,
+                          flexShrink: 0,
+                        }}>
+                          {index + 1}
+                        </span>
+
+                        {/* Logo */}
+                        <div style={{ opacity: isFrozen ? 0.4 : 1, flexShrink: 0 }}>
+                          <LogoIcon name={serviceName} logoUrl={logoUrl} size={24} t={t} />
+                        </div>
+
+                        {/* Name */}
                         <span style={{
                           flex: 1,
                           fontSize: 12,
-                          color: isFrozen ? t.textMuted : t.textSecondary,
-                          fontFamily: "var(--font-mono)",
+                          fontWeight: 500,
+                          color: isFrozen ? t.textMuted : t.text,
+                          fontFamily: "var(--font-sans)",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          opacity: isFrozen ? 0.6 : 1,
                         }}>
-                          {slug}
+                          {serviceName}
                         </span>
 
-                        {/* Frozen indicator */}
+                        {/* Frozen badge */}
                         {isFrozen && (
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.6 }}>
-                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                            <path d="M7 11V7a5 5 0 0110 0v4" />
-                          </svg>
+                          <span style={{
+                            fontSize: 8,
+                            fontWeight: 700,
+                            color: "#f59e0b",
+                            fontFamily: "var(--font-mono)",
+                            textTransform: "uppercase",
+                            letterSpacing: 0.3,
+                            padding: "1px 4px",
+                            borderRadius: 3,
+                            background: "#f59e0b10",
+                            border: "1px solid #f59e0b20",
+                            flexShrink: 0,
+                          }}>
+                            Paused
+                          </span>
                         )}
+
+                        {/* Move up/down arrows */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 1, flexShrink: 0 }}>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); moveService(index, index - 1); }}
+                            disabled={isFirst}
+                            aria-label="Move up"
+                            style={{
+                              background: "transparent",
+                              border: "none",
+                              cursor: isFirst ? "default" : "pointer",
+                              color: t.textMuted,
+                              padding: 0,
+                              opacity: isFirst ? 0.15 : 0.4,
+                              transition: "opacity 0.1s",
+                              lineHeight: 0,
+                            }}
+                            onMouseEnter={(e) => { if (!isFirst) e.currentTarget.style.opacity = "1"; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.opacity = isFirst ? "0.15" : "0.4"; }}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="18 15 12 9 6 15" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); moveService(index, index + 1); }}
+                            disabled={isLast}
+                            aria-label="Move down"
+                            style={{
+                              background: "transparent",
+                              border: "none",
+                              cursor: isLast ? "default" : "pointer",
+                              color: t.textMuted,
+                              padding: 0,
+                              opacity: isLast ? 0.15 : 0.4,
+                              transition: "opacity 0.1s",
+                              lineHeight: 0,
+                            }}
+                            onMouseEnter={(e) => { if (!isLast) e.currentTarget.style.opacity = "1"; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.opacity = isLast ? "0.15" : "0.4"; }}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="6 9 12 15 18 9" />
+                            </svg>
+                          </button>
+                        </div>
 
                         {/* Remove button */}
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onRemoveService(slug, project.id);
-                          }}
+                          onClick={(e) => { e.stopPropagation(); onRemoveService(slug, project.id); }}
+                          aria-label={`Remove ${serviceName}`}
                           style={{
                             background: "transparent",
                             border: "none",
@@ -429,15 +555,15 @@ export default function ProjectManager({
                             color: t.textMuted,
                             padding: 2,
                             flexShrink: 0,
-                            opacity: 0.5,
-                            transition: "opacity 0.1s",
+                            opacity: 0.3,
+                            transition: "all 0.1s",
+                            lineHeight: 0,
                           }}
                           onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.color = "#ef4444"; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.5"; e.currentTarget.style.color = t.textMuted; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.3"; e.currentTarget.style.color = t.textMuted; }}
                         >
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <line x1="18" y1="6" x2="6" y2="18" />
-                            <line x1="6" y1="6" x2="18" y2="18" />
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                           </svg>
                         </button>
                       </div>
@@ -446,30 +572,50 @@ export default function ProjectManager({
                 })}
               </div>
 
-              {/* Over-limit hint */}
+              {/* Info text */}
               {isOverServiceLimit && (
                 <div style={{
                   marginTop: 8,
-                  fontSize: 10,
-                  color: t.textMuted,
-                  fontFamily: "var(--font-sans)",
-                  lineHeight: 1.4,
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  background: t.tagBg,
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 8,
                 }}>
-                  Only the first {limits.maxServicesPerProject} services receive email alerts on the {plan} plan. Drag to prioritize or remove services.
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={t.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
+                    <circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" />
+                  </svg>
+                  <span style={{ fontSize: 10, color: t.textMuted, fontFamily: "var(--font-sans)", lineHeight: 1.5 }}>
+                    The first {limits.maxServicesPerProject} services receive email alerts. Reorder to choose which ones stay active, or remove services to get within your plan limit.
+                  </span>
                 </div>
               )}
             </div>
           )}
 
+          {/* Empty state */}
+          {serviceCount === 0 && (
+            <div style={{
+              textAlign: "center",
+              padding: "20px 0",
+              color: t.textMuted,
+              fontSize: 12,
+              fontFamily: "var(--font-sans)",
+            }}>
+              No services yet. Star services on the dashboard to add them.
+            </div>
+          )}
+
           {/* Delete */}
           {!project.is_default && (
-            <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 16 }}>
+            <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 14 }}>
               {!confirmDelete ? (
                 <button
                   onClick={() => setConfirmDelete(true)}
                   style={{
                     background: "transparent",
-                    border: `1px solid #ef444440`,
+                    border: `1px solid #ef444430`,
                     borderRadius: 8,
                     padding: "8px 14px",
                     fontSize: 12,
@@ -479,7 +625,10 @@ export default function ProjectManager({
                     fontFamily: "var(--font-sans)",
                     transition: "all 0.15s",
                     width: "100%",
+                    opacity: 0.8,
                   }}
+                  onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.borderColor = "#ef444460"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.8"; e.currentTarget.style.borderColor = "#ef444430"; }}
                 >
                   Delete Project
                 </button>
@@ -526,6 +675,22 @@ export default function ProjectManager({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function SectionLabel({ children, t, noMargin }: { children: React.ReactNode; t: Theme; noMargin?: boolean }) {
+  return (
+    <div style={{
+      fontSize: 10,
+      fontWeight: 600,
+      color: t.textMuted,
+      fontFamily: "var(--font-mono)",
+      marginBottom: noMargin ? 0 : 6,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+    }}>
+      {children}
     </div>
   );
 }
