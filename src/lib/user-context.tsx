@@ -6,6 +6,7 @@ import {
   useEffect,
   useState,
   useCallback,
+  useMemo,
   useRef,
   type ReactNode,
 } from "react";
@@ -13,6 +14,7 @@ import type { User, Session, SupabaseClient } from "@supabase/supabase-js";
 import type { ThemeKey } from "@/config/themes";
 import type { Project } from "@/lib/types/supabase";
 import type { Plan, PromoInfo } from "@/lib/subscription";
+import { getActiveServiceInfo, type ActiveServiceInfo } from "@/lib/subscription";
 
 // Event-based toast so user-context can fire toasts without being inside ToastProvider
 type ToastType = "error" | "success" | "info";
@@ -79,7 +81,11 @@ interface UserContextValue {
   createProject: (name: string) => Promise<Project | null>;
   deleteProject: (id: string) => Promise<boolean>;
   renameProject: (id: string, name: string) => Promise<boolean>;
+  reorderProjectServices: (projectId: string, newSlugs: string[]) => Promise<boolean>;
+  setDefaultProject: (id: string) => Promise<boolean>;
   refreshProjects: () => Promise<void>;
+  activeServiceInfo: ActiveServiceInfo;
+  wasProTrial: boolean;
   showUpgradeModal: boolean;
   setShowUpgradeModal: (show: boolean) => void;
   // Notification preferences
@@ -126,6 +132,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProjectId, setActiveProjectIdState] = useState<string | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [wasProTrial, setWasProTrial] = useState(false);
 
   // Notification preferences state
   const [pushEnabled, setPushEnabledState] = useState(false);
@@ -136,6 +143,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
   // Derive active project's service slugs
   const activeProject = projects.find((p) => p.id === activeProjectId) || projects[0] || null;
   const activeProjectSlugs = activeProject?.service_slugs || [];
+
+  // Derive which services are active vs frozen based on plan limits
+  const activeServiceInfo = useMemo(
+    () => getActiveServiceInfo(projects, plan),
+    [projects, plan]
+  );
 
   function loadFromLocalStorage() {
     if (typeof window === "undefined") return;
@@ -193,6 +206,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
       // Load promo info
       setPromoInfo(data.promoInfo || null);
+
+      // Load wasProTrial flag for downgrade detection
+      if (data.wasProTrial) {
+        setWasProTrial(true);
+      }
 
       // Load projects
       if (data.projects && data.projects.length > 0) {
@@ -591,6 +609,74 @@ export function UserProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  const reorderProjectServices = useCallback(
+    async (projectId: string, newSlugs: string[]): Promise<boolean> => {
+      const target = projects.find((p) => p.id === projectId);
+      if (!target) return false;
+
+      // Optimistic update
+      setProjects((prev) =>
+        prev.map((p) => (p.id === projectId ? { ...p, service_slugs: newSlugs } : p))
+      );
+
+      try {
+        const res = await fetch(`/api/projects/${projectId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ service_slugs: newSlugs }),
+        });
+
+        if (!res.ok) {
+          // Revert
+          setProjects((prev) =>
+            prev.map((p) => (p.id === projectId ? { ...p, service_slugs: target.service_slugs } : p))
+          );
+          fireToast("Failed to reorder services");
+          return false;
+        }
+        return true;
+      } catch {
+        setProjects((prev) =>
+          prev.map((p) => (p.id === projectId ? { ...p, service_slugs: target.service_slugs } : p))
+        );
+        fireToast("Network error reordering services");
+        return false;
+      }
+    },
+    [projects]
+  );
+
+  const setDefaultProject = useCallback(
+    async (projectId: string): Promise<boolean> => {
+      const oldProjects = [...projects];
+
+      // Optimistic: mark this as default, unmark others
+      setProjects((prev) =>
+        prev.map((p) => ({ ...p, is_default: p.id === projectId }))
+      );
+
+      try {
+        const res = await fetch(`/api/projects/${projectId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ set_default: true }),
+        });
+
+        if (!res.ok) {
+          setProjects(oldProjects);
+          fireToast("Failed to set default project");
+          return false;
+        }
+        return true;
+      } catch {
+        setProjects(oldProjects);
+        fireToast("Network error setting default project");
+        return false;
+      }
+    },
+    [projects]
+  );
+
   // --- Notification setters ---
 
   const setPushEnabled = useCallback(
@@ -703,7 +789,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
         createProject,
         deleteProject,
         renameProject,
+        reorderProjectServices,
+        setDefaultProject,
         refreshProjects,
+        activeServiceInfo,
+        wasProTrial,
         showUpgradeModal,
         setShowUpgradeModal,
         // Notifications

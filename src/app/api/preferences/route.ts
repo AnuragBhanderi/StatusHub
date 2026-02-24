@@ -14,7 +14,7 @@ export async function GET() {
   }
 
   // Fetch all in parallel
-  const [prefsResult, notifResult, projectsResult, plan, promoInfo] = await Promise.all([
+  const [prefsResult, notifResult, projectsResult, subResult, plan, promoInfo] = await Promise.all([
     supabase
       .from("user_preferences")
       .select("*")
@@ -31,9 +31,22 @@ export async function GET() {
       .eq("user_id", user.id)
       .order("is_default", { ascending: false })
       .order("created_at", { ascending: true }),
+    supabase
+      .from("subscriptions")
+      .select("is_promo, current_period_end")
+      .eq("user_id", user.id)
+      .single(),
     getUserPlan(supabase, user.id),
     getPromoInfo(supabase, user.id),
   ]);
+
+  // Detect if user was on a promo trial that has expired (for showing downgrade modal)
+  const wasProTrial = !!(
+    subResult.data?.is_promo &&
+    subResult.data?.current_period_end &&
+    new Date(subResult.data.current_period_end) < new Date() &&
+    plan === "free"
+  );
 
   // Backfill share_code for projects that don't have one
   const projects = projectsResult.data || [];
@@ -56,6 +69,7 @@ export async function GET() {
     projects,
     plan,
     promoInfo,
+    wasProTrial,
   });
 }
 

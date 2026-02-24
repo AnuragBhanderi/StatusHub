@@ -57,10 +57,10 @@ export async function PUT(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Verify ownership
+  // Verify ownership (also fetch service_slugs for removal comparison)
   const { data: existing } = await supabase
     .from("projects")
-    .select("id, user_id, is_default")
+    .select("id, user_id, is_default, service_slugs")
     .eq("id", id)
     .eq("user_id", user.id)
     .single();
@@ -71,6 +71,18 @@ export async function PUT(
 
   const body = await request.json();
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+
+  // Handle setting this project as default
+  if (body.set_default === true && !existing.is_default) {
+    // Remove default from all other projects for this user
+    await supabase
+      .from("projects")
+      .update({ is_default: false, updated_at: new Date().toISOString() })
+      .eq("user_id", user.id)
+      .neq("id", id);
+
+    updates.is_default = true;
+  }
 
   if (body.name !== undefined) {
     const trimmedName = String(body.name).trim().slice(0, 100);
@@ -97,18 +109,23 @@ export async function PUT(
       validSlugs.has(s)
     );
 
-    // Check per-project service limit
-    const plan = await getUserPlan(supabase, user.id);
-    const limits = getPlanLimits(plan);
+    const currentSlugs: string[] = existing.service_slugs || [];
+    const isReducingOrReordering = serviceSlugs.length <= currentSlugs.length;
 
-    if (serviceSlugs.length > limits.maxServicesPerProject) {
-      return NextResponse.json(
-        {
-          error: `Maximum ${limits.maxServicesPerProject} services per project`,
-          upgrade: plan === "free",
-        },
-        { status: 403 }
-      );
+    // Only enforce plan limit when adding services (increasing count)
+    if (!isReducingOrReordering) {
+      const plan = await getUserPlan(supabase, user.id);
+      const limits = getPlanLimits(plan);
+
+      if (serviceSlugs.length > limits.maxServicesPerProject) {
+        return NextResponse.json(
+          {
+            error: `Maximum ${limits.maxServicesPerProject} services per project`,
+            upgrade: plan === "free",
+          },
+          { status: 403 }
+        );
+      }
     }
     updates.service_slugs = serviceSlugs;
   }

@@ -26,6 +26,7 @@ interface ServiceCardProps {
   isInStack: boolean;
   onToggleStack: () => void;
   hideStackAction?: boolean;
+  isFrozen?: boolean;
   t: Theme;
 }
 
@@ -42,6 +43,7 @@ export default function ServiceCard({
   isInStack,
   onToggleStack,
   hideStackAction,
+  isFrozen = false,
   t,
 }: ServiceCardProps) {
   const sc = STATUS_DISPLAY[currentStatus] || STATUS_DISPLAY.OPERATIONAL;
@@ -88,6 +90,7 @@ export default function ServiceCard({
         height: "100%",
         display: "flex",
         flexDirection: "column" as const,
+        opacity: isFrozen ? 0.5 : 1,
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = "translateY(-1px)";
@@ -131,7 +134,14 @@ export default function ServiceCard({
             >
               {name}
             </span>
-            <StatusDot status={currentStatus} size={compact ? 6 : 7} />
+            {isFrozen ? (
+              <svg width={compact ? 10 : 11} height={compact ? 10 : 11} viewBox="0 0 24 24" fill="none" stroke={t.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.6 }}>
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0110 0v4" />
+              </svg>
+            ) : (
+              <StatusDot status={currentStatus} size={compact ? 6 : 7} />
+            )}
           </div>
           {!compact && (
             <span

@@ -10,6 +10,7 @@ interface ProjectSwitcherProps {
   projects: Project[];
   activeProjectId: string | null;
   plan: Plan;
+  frozenProjectIds?: Set<string>;
   onSelect: (id: string) => void;
   onCreateProject: (name: string) => Promise<void>;
   onUpgrade: () => void;
@@ -24,6 +25,7 @@ export default function ProjectSwitcher({
   projects,
   activeProjectId,
   plan,
+  frozenProjectIds,
   onSelect,
   onCreateProject,
   onUpgrade,
@@ -219,50 +221,60 @@ export default function ProjectSwitcher({
               }}>
                 Switch Project
               </div>
-              {projects.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => {
-                    onSelect(p.id);
-                    setOpen(false);
-                  }}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    width: "100%",
-                    padding: "8px 12px",
-                    background: p.id === activeProjectId ? `${t.accentPrimary}10` : "transparent",
-                    border: "none",
-                    cursor: "pointer",
-                    fontFamily: "var(--font-sans)",
-                    transition: "background 0.1s",
-                    textAlign: "left",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (p.id !== activeProjectId) e.currentTarget.style.background = t.surfaceHover;
-                  }}
-                  onMouseLeave={(e) => {
-                    if (p.id !== activeProjectId) e.currentTarget.style.background = "transparent";
-                  }}
-                >
-                  <span style={{
-                    fontSize: 12,
-                    fontWeight: p.id === activeProjectId ? 600 : 400,
-                    color: p.id === activeProjectId ? t.accentPrimary : t.text,
-                    flex: 1,
-                  }}>
-                    {p.name}
-                  </span>
-                  <span style={{
-                    fontSize: 10,
-                    color: t.textMuted,
-                    fontFamily: "var(--font-mono)",
-                  }}>
-                    {p.service_slugs.length}
-                  </span>
-                </button>
-              ))}
+              {projects.map((p) => {
+                const isFrozenProject = frozenProjectIds?.has(p.id) || false;
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => {
+                      onSelect(p.id);
+                      setOpen(false);
+                    }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      width: "100%",
+                      padding: "8px 12px",
+                      background: p.id === activeProjectId ? `${t.accentPrimary}10` : "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      fontFamily: "var(--font-sans)",
+                      transition: "background 0.1s",
+                      textAlign: "left",
+                      opacity: isFrozenProject ? 0.6 : 1,
+                    }}
+                    onMouseEnter={(e) => {
+                      if (p.id !== activeProjectId) e.currentTarget.style.background = t.surfaceHover;
+                    }}
+                    onMouseLeave={(e) => {
+                      if (p.id !== activeProjectId) e.currentTarget.style.background = "transparent";
+                    }}
+                  >
+                    {isFrozenProject && (
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={t.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0110 0v4" />
+                      </svg>
+                    )}
+                    <span style={{
+                      fontSize: 12,
+                      fontWeight: p.id === activeProjectId ? 600 : 400,
+                      color: p.id === activeProjectId ? t.accentPrimary : isFrozenProject ? t.textMuted : t.text,
+                      flex: 1,
+                    }}>
+                      {p.name}
+                    </span>
+                    <span style={{
+                      fontSize: 10,
+                      color: t.textMuted,
+                      fontFamily: "var(--font-mono)",
+                    }}>
+                      {p.service_slugs.length}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           )}
 

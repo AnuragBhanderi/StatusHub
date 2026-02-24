@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { processServiceEvents, flushPendingEvents } from "@/lib/email/process-service";
 import type { PreloadedContext } from "@/lib/email/process-service";
 import type { IncidentSnapshotEntry } from "@/lib/types/supabase";
+import { resolvePlanFromRow, getPlanLimits } from "@/lib/subscription";
 
 export const dynamic = "force-dynamic";
 
@@ -38,17 +39,52 @@ export async function GET(request: NextRequest) {
       .select("user_id, email_enabled, email_address, severity_threshold")
       .eq("email_enabled", true);
 
-    // Build stack map from projects (union of all service_slugs per user)
-    const { data: allProjects } = await adminClient
-      .from("projects")
-      .select("user_id, service_slugs");
+    // Build stack map from projects, filtered by plan limits
+    // Users on free plan only get emails for default project's first N services
+    const [projectsResult, subsResult] = await Promise.all([
+      adminClient.from("projects").select("user_id, service_slugs, is_default"),
+      adminClient.from("subscriptions").select("user_id, plan, status, current_period_end, is_promo"),
+    ]);
 
+    const allProjects = projectsResult.data || [];
+    const allSubs = subsResult.data || [];
+
+    // Build plan map: user_id → resolved plan
+    const planMap = new Map<string, "free" | "pro">();
+    for (const sub of allSubs) {
+      planMap.set(sub.user_id, resolvePlanFromRow(sub));
+    }
+
+    // Group projects by user
+    const userProjectsMap = new Map<string, typeof allProjects>();
+    for (const p of allProjects) {
+      const proj = p as { user_id: string; service_slugs: string[]; is_default: boolean };
+      const existing = userProjectsMap.get(proj.user_id) || [];
+      existing.push(proj);
+      userProjectsMap.set(proj.user_id, existing);
+    }
+
+    // Build plan-aware stackMap
     const stackMap = new Map<string, Set<string>>();
-    for (const p of allProjects || []) {
-      const proj = p as { user_id: string; service_slugs: string[] };
-      const existing = stackMap.get(proj.user_id) || new Set<string>();
-      for (const slug of proj.service_slugs || []) existing.add(slug);
-      stackMap.set(proj.user_id, existing);
+    for (const [userId, userProjects] of userProjectsMap) {
+      const plan = planMap.get(userId) || "free";
+      const limits = getPlanLimits(plan);
+      const eligible = new Set<string>();
+
+      // Sort: default project first
+      const sorted = [...userProjects].sort((a, b) =>
+        a.is_default ? -1 : b.is_default ? 1 : 0
+      );
+
+      let projectCount = 0;
+      for (const proj of sorted) {
+        projectCount++;
+        if (projectCount > limits.maxProjects) break;
+        const slugs = (proj.service_slugs || []).slice(0, limits.maxServicesPerProject);
+        for (const slug of slugs) eligible.add(slug);
+      }
+
+      stackMap.set(userId, eligible);
     }
 
     const preloaded: PreloadedContext = {

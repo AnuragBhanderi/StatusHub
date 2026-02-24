@@ -15,6 +15,8 @@ import UserMenu from "@/components/UserMenu";
 import ProjectSwitcher from "@/components/ProjectSwitcher";
 import ProjectManager from "@/components/ProjectManager";
 import UpgradeModal from "@/components/UpgradeModal";
+import TrialExpiryBanner from "@/components/TrialExpiryBanner";
+import TrialExpiredModal from "@/components/TrialExpiredModal";
 import { ToastProvider, useToast } from "@/components/Toast";
 import AppHeader from "@/components/AppHeader";
 import AppFooter from "@/components/AppFooter";
@@ -86,6 +88,10 @@ function DashboardInner() {
     createProject,
     deleteProject,
     renameProject,
+    reorderProjectServices,
+    setDefaultProject,
+    activeServiceInfo,
+    wasProTrial,
     showUpgradeModal,
     setShowUpgradeModal,
     notificationPrefs,
@@ -106,6 +112,7 @@ function DashboardInner() {
   const [hasNewAnnouncement, setHasNewAnnouncement] = useState(false);
   const [unseenEntries, setUnseenEntries] = useState<ChangelogEntry[]>([]);
   const [sharedStack, setSharedStack] = useState<string[] | null>(null);
+  const [showTrialExpired, setShowTrialExpired] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const lastFetchTimeRef = useRef(Date.now());
   const [countdown, setCountdown] = useState(180);
@@ -118,6 +125,17 @@ function DashboardInner() {
   useEffect(() => {
     return onToast((message, type) => showToast(message, type));
   }, [showToast]);
+
+  // Show trial expired modal once after downgrade
+  useEffect(() => {
+    if (!wasProTrial || !user) return;
+    const key = `statushub_trial_expired_seen_${user.id}`;
+    if (localStorage.getItem(key) === "true") return;
+    localStorage.setItem(key, "true");
+    // Small delay to let dashboard load first
+    const timer = setTimeout(() => setShowTrialExpired(true), 800);
+    return () => clearTimeout(timer);
+  }, [wasProTrial, user]);
 
   // Check for unseen changelog announcements
   useEffect(() => {
@@ -427,6 +445,7 @@ function DashboardInner() {
                 projects={projects}
                 activeProjectId={activeProjectId}
                 plan={plan}
+                frozenProjectIds={activeServiceInfo.frozenProjectIds}
                 onSelect={setActiveProject}
                 onUpgrade={() => setShowUpgradeModal(true)}
                 onCreateProject={async (name) => {
@@ -583,6 +602,17 @@ function DashboardInner() {
               monitoringOnlyCount={monitoringOnlyCount}
               t={t}
             />
+
+            {/* Trial expiry warning banner */}
+            {isSignedIn && (
+              <TrialExpiryBanner
+                plan={plan}
+                promoInfo={promoInfo}
+                projects={projects}
+                onUpgrade={() => setShowUpgradeModal(true)}
+                t={t}
+              />
+            )}
 
             {/* Onboarding: create first project */}
             {isSignedIn && projects.length === 0 && (
@@ -890,7 +920,9 @@ function DashboardInner() {
                             compact={compact} onClick={() => setSelectedSlug(s.slug)}
                             isInStack={isSignedIn ? isInActiveProject(s.slug) : false}
                             onToggleStack={() => isSignedIn && toggleServiceInProject(s.slug)}
-                            hideStackAction={!isSignedIn} t={t}
+                            hideStackAction={!isSignedIn}
+                            isFrozen={showMyStack && isSignedIn ? activeServiceInfo.frozenSlugs.has(s.slug) : false}
+                            t={t}
                           />
                         </div>
                       ))}
@@ -942,7 +974,9 @@ function DashboardInner() {
                             compact={compact} onClick={() => setSelectedSlug(s.slug)}
                             isInStack={isSignedIn ? isInActiveProject(s.slug) : false}
                             onToggleStack={() => isSignedIn && toggleServiceInProject(s.slug)}
-                            hideStackAction={!isSignedIn} t={t}
+                            hideStackAction={!isSignedIn}
+                            isFrozen={showMyStack && isSignedIn ? activeServiceInfo.frozenSlugs.has(s.slug) : false}
+                            t={t}
                           />
                         </div>
                       ))}
@@ -993,7 +1027,9 @@ function DashboardInner() {
                             compact={compact} onClick={() => setSelectedSlug(s.slug)}
                             isInStack={isSignedIn ? isInActiveProject(s.slug) : false}
                             onToggleStack={() => isSignedIn && toggleServiceInProject(s.slug)}
-                            hideStackAction={!isSignedIn} t={t}
+                            hideStackAction={!isSignedIn}
+                            isFrozen={showMyStack && isSignedIn ? activeServiceInfo.frozenSlugs.has(s.slug) : false}
+                            t={t}
                           />
                         </div>
                       ))}
@@ -1039,11 +1075,26 @@ function DashboardInner() {
             plan={plan}
             onRename={renameProject}
             onDelete={deleteProject}
+            onReorderServices={reorderProjectServices}
+            onRemoveService={(slug, projectId) => removeServiceFromProject(slug, projectId)}
+            onSetDefault={setDefaultProject}
             onClose={() => setManagingProject(false)}
             t={t}
           />
         ) : null;
       })()}
+
+      {/* Trial Expired Modal */}
+      {showTrialExpired && (
+        <TrialExpiredModal
+          projects={projects}
+          plan={plan}
+          onUpgrade={() => setShowUpgradeModal(true)}
+          onManageServices={() => setManagingProject(true)}
+          onClose={() => setShowTrialExpired(false)}
+          t={t}
+        />
+      )}
     </div>
   );
 }
