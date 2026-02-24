@@ -35,11 +35,25 @@ export async function GET() {
     getPromoInfo(supabase, user.id),
   ]);
 
+  // Backfill share_code for projects that don't have one
+  const projects = projectsResult.data || [];
+  for (const p of projects) {
+    if (!p.share_code) {
+      const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+      let code = "";
+      for (let i = 0; i < 7; i++) {
+        code += chars[Math.floor(Math.random() * chars.length)];
+      }
+      await supabase.from("projects").update({ share_code: code }).eq("id", p.id);
+      p.share_code = code;
+    }
+  }
+
   return NextResponse.json({
     user: { id: user.id, email: user.email },
     preferences: prefsResult.data || null,
     notificationPreferences: notifResult.data || null,
-    projects: projectsResult.data || [],
+    projects,
     plan,
     promoInfo,
   });
