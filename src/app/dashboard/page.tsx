@@ -26,6 +26,7 @@ import ErrorState from "@/components/ErrorState";
 import WhatsNewModal from "@/components/WhatsNewModal";
 import WhatsNewBadge from "@/components/WhatsNewBadge";
 import { CHANGELOG, getLatestChangelogId, getUnseenChangelog, type ChangelogEntry } from "@/config/changelog";
+import { getPlanLimits } from "@/lib/subscription";
 import { usePushNotifications } from "@/lib/hooks/use-push-notifications";
 import { onToast } from "@/lib/user-context";
 
@@ -297,6 +298,27 @@ function DashboardInner() {
   }, [selectedSlug]);
 
   const t = THEMES[theme];
+
+  // Compute frozen slugs for the currently viewed project
+  // This is per-project (not global) so it works correctly after changing defaults
+  const viewedProjectFrozenSlugs = useMemo(() => {
+    if (!activeProjectId) return new Set<string>();
+    const project = projects.find((p) => p.id === activeProjectId);
+    if (!project) return new Set<string>();
+
+    // If this project is frozen entirely (non-default, over project limit)
+    if (activeServiceInfo.frozenProjectIds.has(activeProjectId)) {
+      return new Set(project.service_slugs);
+    }
+
+    // Project is active — services beyond the per-project limit are frozen
+    const limits = getPlanLimits(plan);
+    if (project.service_slugs.length > limits.maxServicesPerProject) {
+      return new Set(project.service_slugs.slice(limits.maxServicesPerProject));
+    }
+
+    return new Set<string>();
+  }, [activeProjectId, projects, activeServiceInfo.frozenProjectIds, plan]);
 
   // Toggle service in active project
   const toggleServiceInProject = useCallback(
@@ -921,7 +943,7 @@ function DashboardInner() {
                             isInStack={isSignedIn ? isInActiveProject(s.slug) : false}
                             onToggleStack={() => isSignedIn && toggleServiceInProject(s.slug)}
                             hideStackAction={!isSignedIn}
-                            isFrozen={showMyStack && isSignedIn ? activeServiceInfo.frozenSlugs.has(s.slug) : false}
+                            isFrozen={showMyStack && isSignedIn ? viewedProjectFrozenSlugs.has(s.slug) : false}
                             t={t}
                           />
                         </div>
@@ -975,7 +997,7 @@ function DashboardInner() {
                             isInStack={isSignedIn ? isInActiveProject(s.slug) : false}
                             onToggleStack={() => isSignedIn && toggleServiceInProject(s.slug)}
                             hideStackAction={!isSignedIn}
-                            isFrozen={showMyStack && isSignedIn ? activeServiceInfo.frozenSlugs.has(s.slug) : false}
+                            isFrozen={showMyStack && isSignedIn ? viewedProjectFrozenSlugs.has(s.slug) : false}
                             t={t}
                           />
                         </div>
@@ -1028,7 +1050,7 @@ function DashboardInner() {
                             isInStack={isSignedIn ? isInActiveProject(s.slug) : false}
                             onToggleStack={() => isSignedIn && toggleServiceInProject(s.slug)}
                             hideStackAction={!isSignedIn}
-                            isFrozen={showMyStack && isSignedIn ? activeServiceInfo.frozenSlugs.has(s.slug) : false}
+                            isFrozen={showMyStack && isSignedIn ? viewedProjectFrozenSlugs.has(s.slug) : false}
                             t={t}
                           />
                         </div>
