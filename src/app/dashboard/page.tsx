@@ -292,10 +292,47 @@ function DashboardInner() {
     return () => clearInterval(id);
   }, []);
 
-  // Scroll to top when entering/leaving detail view
+  // Sync URL and browser history with detail view state
+  const isInitialLoad = useRef(true);
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [selectedSlug]);
+    if (!hasMounted) return;
+
+    if (selectedSlug) {
+      // Push history entry when opening detail view (skip on initial load from URL param)
+      const url = new URL(window.location.href);
+      if (isInitialLoad.current && url.searchParams.get("service") === selectedSlug) {
+        // Replace instead of push to avoid double entry from ?service= redirect
+        url.searchParams.set("service", selectedSlug);
+        window.history.replaceState({}, "", url.pathname + url.search);
+        isInitialLoad.current = false;
+      } else {
+        url.searchParams.set("service", selectedSlug);
+        window.history.pushState({}, "", url.pathname + url.search);
+        isInitialLoad.current = false;
+      }
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } else if (!isInitialLoad.current) {
+      // Clean URL when leaving detail view
+      const url = new URL(window.location.href);
+      if (url.searchParams.has("service")) {
+        url.searchParams.delete("service");
+        const newUrl = url.pathname + (url.search || "");
+        window.history.replaceState({}, "", newUrl);
+      }
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [selectedSlug, hasMounted]);
+
+  // Handle browser back/forward button
+  useEffect(() => {
+    function handlePopState() {
+      const params = new URLSearchParams(window.location.search);
+      const serviceParam = params.get("service");
+      setSelectedSlug(serviceParam || null);
+    }
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   const t = THEMES[theme];
 
