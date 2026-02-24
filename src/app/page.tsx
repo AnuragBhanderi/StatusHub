@@ -1780,6 +1780,8 @@ export default function LandingPage() {
               borderRadius: 14,
               background: t.surface,
               border: `1px solid ${t.border}`,
+              display: "flex",
+              flexDirection: "column",
               ...pricingStagger.item(1),
             }}
             onMouseEnter={(e) => {
@@ -1800,7 +1802,7 @@ export default function LandingPage() {
             <div style={{ fontSize: 13, color: t.textFaint, marginBottom: 24 }}>
               No signup required
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, flex: 1 }}>
               {[
                 "Full dashboard access",
                 `All ${totalCount || "40+"} services monitored`,
@@ -1864,6 +1866,8 @@ export default function LandingPage() {
               border: `1px solid ${t.accentPrimary}35`,
               position: "relative",
               boxShadow: `0 0 30px ${t.accentPrimary}08`,
+              display: "flex",
+              flexDirection: "column",
               ...pricingStagger.item(2),
             }}
             onMouseEnter={(e) => {
@@ -1892,7 +1896,7 @@ export default function LandingPage() {
                 letterSpacing: 0.5,
               }}
             >
-              RECOMMENDED
+              COMING SOON
             </div>
             <div style={{ fontSize: 11, fontWeight: 700, color: t.accentPrimary, fontFamily: "var(--font-mono)", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>
               Pro
@@ -1903,16 +1907,16 @@ export default function LandingPage() {
             <div style={{ fontSize: 13, color: t.textFaint, marginBottom: 24 }}>
               For teams and power users
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, flex: 1 }}>
               {[
                 "Everything in Free",
                 "3 projects, 7 services each",
                 "All 11 notification event types",
                 "Granular alert controls",
                 "Cloud-synced preferences",
-                "Public status pages (coming soon)",
-                "Uptime reports (coming soon)",
-                "Weekly digest email (coming soon)",
+                "Public status pages",
+                "Uptime reports",
+                "Weekly digest email",
               ].map((f) => (
                 <div
                   key={f}
@@ -1931,8 +1935,7 @@ export default function LandingPage() {
                 </div>
               ))}
             </div>
-            <Link
-              href="/dashboard"
+            <div
               style={{
                 display: "block",
                 textAlign: "center",
@@ -1940,24 +1943,16 @@ export default function LandingPage() {
                 padding: "11px 0",
                 borderRadius: 8,
                 border: "none",
-                background: `linear-gradient(135deg, ${t.accentPrimary}, ${t.accentSecondary})`,
-                color: "#fff",
+                background: `linear-gradient(135deg, ${t.accentPrimary}60, ${t.accentSecondary}60)`,
+                color: "rgba(255,255,255,0.7)",
                 fontSize: 14,
                 fontWeight: 600,
-                textDecoration: "none",
                 fontFamily: "var(--font-sans)",
-                transition: "all 0.2s ease",
-                boxShadow: `0 2px 12px ${t.accentPrimary}30`,
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.boxShadow = `0 4px 20px ${t.accentPrimary}50`;
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.boxShadow = `0 2px 12px ${t.accentPrimary}30`;
+                cursor: "default",
               }}
             >
-              Get Started
-            </Link>
+              Coming Soon
+            </div>
           </div>
         </div>
       </section>
