@@ -45,6 +45,32 @@ export interface EmailAlertLog {
   sent_at: string;
 }
 
+export interface Subscription {
+  id: string;
+  user_id: string;
+  lemon_squeezy_customer_id: string | null;
+  lemon_squeezy_subscription_id: string | null;
+  plan: "free" | "pro";
+  status: "active" | "cancelled" | "past_due" | "expired" | "paused";
+  current_period_end: string | null;
+  cancel_at: string | null;
+  is_promo: boolean;
+  promo_code: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Project {
+  id: string;
+  user_id: string;
+  name: string;
+  slug: string;
+  service_slugs: string[];
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -133,6 +159,62 @@ export interface Database {
           new_status?: string;
           event_type?: string;
           sent_at?: string;
+        };
+        Relationships: [];
+      };
+      subscriptions: {
+        Row: Subscription;
+        Insert: {
+          id?: string;
+          user_id: string;
+          lemon_squeezy_customer_id?: string | null;
+          lemon_squeezy_subscription_id?: string | null;
+          plan?: "free" | "pro";
+          status?: "active" | "cancelled" | "past_due" | "expired" | "paused";
+          current_period_end?: string | null;
+          cancel_at?: string | null;
+          is_promo?: boolean;
+          promo_code?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          lemon_squeezy_customer_id?: string | null;
+          lemon_squeezy_subscription_id?: string | null;
+          plan?: "free" | "pro";
+          status?: "active" | "cancelled" | "past_due" | "expired" | "paused";
+          current_period_end?: string | null;
+          cancel_at?: string | null;
+          is_promo?: boolean;
+          promo_code?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      projects: {
+        Row: Project;
+        Insert: {
+          id?: string;
+          user_id: string;
+          name?: string;
+          slug: string;
+          service_slugs?: string[];
+          is_default?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          name?: string;
+          slug?: string;
+          service_slugs?: string[];
+          is_default?: boolean;
+          created_at?: string;
+          updated_at?: string;
         };
         Relationships: [];
       };

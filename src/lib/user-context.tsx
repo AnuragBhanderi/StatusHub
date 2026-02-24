@@ -11,6 +11,8 @@ import {
 } from "react";
 import type { User, Session, SupabaseClient } from "@supabase/supabase-js";
 import type { ThemeKey } from "@/config/themes";
+import type { Project } from "@/lib/types/supabase";
+import type { Plan, PromoInfo } from "@/lib/subscription";
 
 // Event-based toast so user-context can fire toasts without being inside ToastProvider
 type ToastType = "error" | "success" | "info";
@@ -59,14 +61,28 @@ interface UserContextValue {
   preferences: {
     theme: ThemeKey;
     compact: boolean;
-    myStack: string[];
     sort: "status" | "name" | "category";
   };
   setTheme: (theme: ThemeKey) => void;
   setCompact: (compact: boolean) => void;
   setSort: (sort: "status" | "name" | "category") => void;
-  toggleStack: (slug: string) => void;
-  setMyStack: (stack: string[]) => void;
+  // Projects (replaces My Stack)
+  plan: Plan;
+  promoInfo: PromoInfo | null;
+  projects: Project[];
+  activeProjectId: string | null;
+  activeProjectSlugs: string[];
+  setActiveProject: (id: string) => void;
+  addServiceToProject: (slug: string, projectId?: string) => Promise<boolean>;
+  removeServiceFromProject: (slug: string, projectId?: string) => Promise<void>;
+  isInActiveProject: (slug: string) => boolean;
+  createProject: (name: string) => Promise<Project | null>;
+  deleteProject: (id: string) => Promise<boolean>;
+  renameProject: (id: string, name: string) => Promise<boolean>;
+  refreshProjects: () => Promise<void>;
+  showUpgradeModal: boolean;
+  setShowUpgradeModal: (show: boolean) => void;
+  // Notification preferences
   notificationPrefs: NotificationPrefs;
   setPushEnabled: (enabled: boolean) => void;
   setEmailEnabled: (enabled: boolean) => void;
@@ -103,7 +119,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemeKey>("dark");
   const [compact, setCompactState] = useState(false);
   const [sort, setSortState] = useState<"status" | "name" | "category">("status");
-  const [myStack, setMyStackState] = useState<string[]>([]);
+
+  // Projects state (replaces myStack)
+  const [plan, setPlan] = useState<Plan>("free");
+  const [promoInfo, setPromoInfo] = useState<PromoInfo | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [activeProjectId, setActiveProjectIdState] = useState<string | null>(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   // Notification preferences state
   const [pushEnabled, setPushEnabledState] = useState(false);
@@ -111,18 +133,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [emailAddress, setEmailAddressState] = useState("");
   const [severityThreshold, setSeverityThresholdState] = useState("all");
 
+  // Derive active project's service slugs
+  const activeProject = projects.find((p) => p.id === activeProjectId) || projects[0] || null;
+  const activeProjectSlugs = activeProject?.service_slugs || [];
+
   function loadFromLocalStorage() {
     if (typeof window === "undefined") return;
     const savedTheme = localStorage.getItem("statushub_theme") as ThemeKey | null;
     if (savedTheme) setThemeState(savedTheme);
-    const savedStack = localStorage.getItem("statushub_my_stack");
-    if (savedStack) {
-      try {
-        setMyStackState(JSON.parse(savedStack));
-      } catch {
-        /* ignore parse errors */
-      }
-    }
     const savedCompact = localStorage.getItem("statushub_compact");
     if (savedCompact === "true") setCompactState(true);
     const savedSort = localStorage.getItem("statushub_sort") as "status" | "name" | "category" | null;
@@ -137,9 +155,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
     if (savedAddr) setEmailAddressState(savedAddr);
     const savedThreshold = localStorage.getItem("statushub_severity_threshold");
     if (savedThreshold) setSeverityThresholdState(savedThreshold);
+
+    // Load active project ID from localStorage
+    const savedActiveProject = localStorage.getItem("statushub_active_project");
+    if (savedActiveProject) setActiveProjectIdState(savedActiveProject);
   }
 
-  // Load preferences via server API route (bypasses client-side RLS issues)
+  // Load preferences via server API route
   async function loadFromAPI() {
     try {
       const res = await fetch("/api/preferences");
@@ -153,22 +175,38 @@ export function UserProvider({ children }: { children: ReactNode }) {
       if (data.preferences) {
         setThemeState(data.preferences.theme as ThemeKey);
         setCompactState(data.preferences.compact);
-        setMyStackState(data.preferences.my_stack || []);
-        // Also sync to localStorage
         localStorage.setItem("statushub_theme", data.preferences.theme);
         localStorage.setItem("statushub_compact", data.preferences.compact ? "true" : "false");
-        localStorage.setItem("statushub_my_stack", JSON.stringify(data.preferences.my_stack || []));
       } else {
         // No preferences in DB yet — use localStorage and save to DB
         loadFromLocalStorage();
         await savePreferencesToAPI({
           theme: localStorage.getItem("statushub_theme") || "dark",
           compact: localStorage.getItem("statushub_compact") === "true",
-          my_stack: (() => {
-            try { return JSON.parse(localStorage.getItem("statushub_my_stack") || "[]"); }
-            catch { return []; }
-          })(),
         });
+      }
+
+      // Load plan
+      if (data.plan) {
+        setPlan(data.plan);
+      }
+
+      // Load promo info
+      setPromoInfo(data.promoInfo || null);
+
+      // Load projects
+      if (data.projects && data.projects.length > 0) {
+        setProjects(data.projects);
+        // Set active project: use saved preference, or default project, or first
+        const savedActiveProject = localStorage.getItem("statushub_active_project");
+        const matchesSaved = savedActiveProject && data.projects.some((p: Project) => p.id === savedActiveProject);
+        if (matchesSaved) {
+          setActiveProjectIdState(savedActiveProject);
+        } else {
+          const defaultProject = data.projects.find((p: Project) => p.is_default) || data.projects[0];
+          setActiveProjectIdState(defaultProject.id);
+          localStorage.setItem("statushub_active_project", defaultProject.id);
+        }
       }
 
       if (data.notificationPreferences) {
@@ -177,7 +215,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         setEmailAddressState(data.notificationPreferences.email_address ?? "");
         setSeverityThresholdState(data.notificationPreferences.severity_threshold ?? "all");
       }
-    } catch (err) {
+    } catch {
       fireToast("Network error loading preferences");
       loadFromLocalStorage();
     }
@@ -187,7 +225,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
   async function savePreferencesToAPI(updates: {
     theme?: string;
     compact?: boolean;
-    my_stack?: string[];
   }) {
     try {
       const res = await fetch("/api/preferences", {
@@ -262,10 +299,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
         setUser(s?.user ?? null);
 
         if (event === "SIGNED_IN" && s?.user) {
-          // On fresh sign-in, load from API (will migrate localStorage if needed)
           await loadFromAPI();
         }
         if (event === "SIGNED_OUT") {
+          setPlan("free");
+          setPromoInfo(null);
+          setProjects([]);
+          setActiveProjectIdState(null);
           loadFromLocalStorage();
         }
       });
@@ -281,7 +321,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
     async (updates: {
       theme?: string;
       compact?: boolean;
-      my_stack?: string[];
     }) => {
       if (typeof window !== "undefined") {
         if (updates.theme !== undefined)
@@ -290,11 +329,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
           localStorage.setItem(
             "statushub_compact",
             updates.compact ? "true" : "false"
-          );
-        if (updates.my_stack !== undefined)
-          localStorage.setItem(
-            "statushub_my_stack",
-            JSON.stringify(updates.my_stack)
           );
       }
 
@@ -358,26 +392,206 @@ export function UserProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  const toggleStack = useCallback(
-    (slug: string) => {
-      setMyStackState((prev) => {
-        const next = prev.includes(slug)
-          ? prev.filter((s) => s !== slug)
-          : [...prev, slug];
-        savePreferences({ my_stack: next });
-        return next;
-      });
-    },
-    [savePreferences]
+  // --- Project management ---
+
+  const setActiveProject = useCallback((id: string) => {
+    setActiveProjectIdState(id);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("statushub_active_project", id);
+    }
+  }, []);
+
+  const refreshProjects = useCallback(async () => {
+    try {
+      const res = await fetch("/api/projects");
+      if (res.ok) {
+        const data = await res.json();
+        setProjects(data.projects || []);
+      }
+    } catch {
+      // silent
+    }
+  }, []);
+
+  const isInActiveProject = useCallback(
+    (slug: string) => activeProjectSlugs.includes(slug),
+    [activeProjectSlugs]
   );
 
-  const setMyStack = useCallback(
-    (stack: string[]) => {
-      setMyStackState(stack);
-      savePreferences({ my_stack: stack });
+  const addServiceToProject = useCallback(
+    async (slug: string, projectId?: string): Promise<boolean> => {
+      const targetId = projectId || activeProjectId;
+      const target = projects.find((p) => p.id === targetId);
+      if (!target) return false;
+
+      if (target.service_slugs.includes(slug)) return true; // already added
+
+      const newSlugs = [...target.service_slugs, slug];
+
+      // Optimistic update
+      setProjects((prev) =>
+        prev.map((p) => (p.id === targetId ? { ...p, service_slugs: newSlugs } : p))
+      );
+
+      try {
+        const res = await fetch(`/api/projects/${targetId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ service_slugs: newSlugs }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          // Revert optimistic update
+          setProjects((prev) =>
+            prev.map((p) => (p.id === targetId ? { ...p, service_slugs: target.service_slugs } : p))
+          );
+          if (data.upgrade) {
+            setShowUpgradeModal(true);
+          } else {
+            fireToast(data.error || "Failed to add service");
+          }
+          return false;
+        }
+        return true;
+      } catch {
+        // Revert
+        setProjects((prev) =>
+          prev.map((p) => (p.id === targetId ? { ...p, service_slugs: target.service_slugs } : p))
+        );
+        fireToast("Network error adding service");
+        return false;
+      }
     },
-    [savePreferences]
+    [activeProjectId, projects]
   );
+
+  const removeServiceFromProject = useCallback(
+    async (slug: string, projectId?: string) => {
+      const targetId = projectId || activeProjectId;
+      const target = projects.find((p) => p.id === targetId);
+      if (!target) return;
+
+      const newSlugs = target.service_slugs.filter((s) => s !== slug);
+
+      // Optimistic update
+      setProjects((prev) =>
+        prev.map((p) => (p.id === targetId ? { ...p, service_slugs: newSlugs } : p))
+      );
+
+      try {
+        const res = await fetch(`/api/projects/${targetId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ service_slugs: newSlugs }),
+        });
+
+        if (!res.ok) {
+          // Revert
+          setProjects((prev) =>
+            prev.map((p) => (p.id === targetId ? { ...p, service_slugs: target.service_slugs } : p))
+          );
+          fireToast("Failed to remove service");
+        }
+      } catch {
+        // Revert
+        setProjects((prev) =>
+          prev.map((p) => (p.id === targetId ? { ...p, service_slugs: target.service_slugs } : p))
+        );
+        fireToast("Network error removing service");
+      }
+    },
+    [activeProjectId, projects]
+  );
+
+  const createProject = useCallback(
+    async (name: string): Promise<Project | null> => {
+      try {
+        const res = await fetch("/api/projects", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, service_slugs: [] }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (data.upgrade) {
+            setShowUpgradeModal(true);
+          } else {
+            fireToast(data.error || "Failed to create project");
+          }
+          return null;
+        }
+
+        const data = await res.json();
+        const newProject = data.project as Project;
+        setProjects((prev) => [...prev, newProject]);
+        return newProject;
+      } catch {
+        fireToast("Network error creating project");
+        return null;
+      }
+    },
+    []
+  );
+
+  const deleteProject = useCallback(
+    async (id: string): Promise<boolean> => {
+      try {
+        const res = await fetch(`/api/projects/${id}`, { method: "DELETE" });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          fireToast(data.error || "Failed to delete project");
+          return false;
+        }
+
+        setProjects((prev) => prev.filter((p) => p.id !== id));
+        // If we deleted the active project, switch to default
+        if (activeProjectId === id) {
+          const remaining = projects.filter((p) => p.id !== id);
+          const defaultP = remaining.find((p) => p.is_default) || remaining[0];
+          if (defaultP) {
+            setActiveProject(defaultP.id);
+          }
+        }
+        return true;
+      } catch {
+        fireToast("Network error deleting project");
+        return false;
+      }
+    },
+    [activeProjectId, projects, setActiveProject]
+  );
+
+  const renameProject = useCallback(
+    async (id: string, name: string): Promise<boolean> => {
+      try {
+        const res = await fetch(`/api/projects/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name }),
+        });
+
+        if (!res.ok) {
+          fireToast("Failed to rename project");
+          return false;
+        }
+
+        const data = await res.json();
+        const updated = data.project;
+        setProjects((prev) =>
+          prev.map((p) => (p.id === id ? { ...p, name: updated.name, slug: updated.slug } : p))
+        );
+        return true;
+      } catch {
+        fireToast("Network error renaming project");
+        return false;
+      }
+    },
+    []
+  );
+
+  // --- Notification setters ---
 
   const setPushEnabled = useCallback(
     (enabled: boolean) => {
@@ -472,12 +686,27 @@ export function UserProvider({ children }: { children: ReactNode }) {
         signInWithGoogle,
         signInWithGitHub,
         signOut: signOutFn,
-        preferences: { theme, compact, myStack, sort },
+        preferences: { theme, compact, sort },
         setTheme,
         setCompact,
         setSort,
-        toggleStack,
-        setMyStack,
+        // Projects
+        plan,
+        promoInfo,
+        projects,
+        activeProjectId: activeProject?.id || null,
+        activeProjectSlugs,
+        setActiveProject,
+        addServiceToProject,
+        removeServiceFromProject,
+        isInActiveProject,
+        createProject,
+        deleteProject,
+        renameProject,
+        refreshProjects,
+        showUpgradeModal,
+        setShowUpgradeModal,
+        // Notifications
         notificationPrefs: {
           pushEnabled,
           emailEnabled,

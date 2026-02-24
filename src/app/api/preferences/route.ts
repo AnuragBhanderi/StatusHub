@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getUserPlan, getPromoInfo } from "@/lib/subscription";
 
 export const dynamic = "force-dynamic";
 
-// GET: Load user preferences + notification preferences
+// GET: Load user preferences + notification preferences + plan + projects
 export async function GET() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -12,8 +13,8 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Fetch both in parallel
-  const [prefsResult, notifResult] = await Promise.all([
+  // Fetch all in parallel
+  const [prefsResult, notifResult, projectsResult, plan, promoInfo] = await Promise.all([
     supabase
       .from("user_preferences")
       .select("*")
@@ -24,12 +25,23 @@ export async function GET() {
       .select("*")
       .eq("user_id", user.id)
       .single(),
+    supabase
+      .from("projects")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("is_default", { ascending: false })
+      .order("created_at", { ascending: true }),
+    getUserPlan(supabase, user.id),
+    getPromoInfo(supabase, user.id),
   ]);
 
   return NextResponse.json({
     user: { id: user.id, email: user.email },
     preferences: prefsResult.data || null,
     notificationPreferences: notifResult.data || null,
+    projects: projectsResult.data || [],
+    plan,
+    promoInfo,
   });
 }
 
@@ -45,13 +57,12 @@ export async function PUT(request: NextRequest) {
   const body = await request.json();
   const results: { preferences?: unknown; notificationPreferences?: unknown; errors: string[] } = { errors: [] };
 
-  // Save user preferences if provided
+  // Save user preferences if provided (theme, compact only — my_stack removed)
   if (body.preferences) {
-    const { theme, compact, my_stack } = body.preferences;
+    const { theme, compact } = body.preferences;
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (theme !== undefined) updates.theme = theme;
     if (compact !== undefined) updates.compact = compact;
-    if (my_stack !== undefined) updates.my_stack = my_stack;
 
     const { data, error } = await supabase
       .from("user_preferences")

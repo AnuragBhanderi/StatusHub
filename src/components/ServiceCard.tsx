@@ -153,7 +153,7 @@ export default function ServiceCard({
               e.stopPropagation();
               onToggleStack();
             }}
-            aria-label={isInStack ? `Remove ${name} from My Stack` : `Add ${name} to My Stack`}
+            aria-label={isInStack ? `Remove ${name} from project` : `Add ${name} to project`}
             style={{
               background: isInStack ? t.stackBtnBg : "transparent",
               border: `1px solid ${isInStack ? t.stackBtnBorder : "transparent"}`,

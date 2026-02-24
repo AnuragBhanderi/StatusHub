@@ -41,7 +41,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem("statushub_theme")||"dark";var m={"dark":"#09090b","light":"#fafafa","midnight":"#04040a"};document.documentElement.style.background=m[t]||m.dark;document.documentElement.style.colorScheme=t==="light"?"light":"dark"}catch(e){}})()`,
+          }}
+        />
+      </head>
       <body className={`${dmSans.variable} ${spaceMono.variable} antialiased`}>
         <UserProvider>
           {children}

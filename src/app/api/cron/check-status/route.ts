@@ -38,13 +38,18 @@ export async function GET(request: NextRequest) {
       .select("user_id, email_enabled, email_address, severity_threshold")
       .eq("email_enabled", true);
 
-    const { data: allUserPrefs } = await adminClient
-      .from("user_preferences")
-      .select("user_id, my_stack");
+    // Build stack map from projects (union of all service_slugs per user)
+    const { data: allProjects } = await adminClient
+      .from("projects")
+      .select("user_id, service_slugs");
 
-    const stackMap = new Map(
-      (allUserPrefs || []).map((p: { user_id: string; my_stack: string[] }) => [p.user_id, new Set(p.my_stack)])
-    );
+    const stackMap = new Map<string, Set<string>>();
+    for (const p of allProjects || []) {
+      const proj = p as { user_id: string; service_slugs: string[] };
+      const existing = stackMap.get(proj.user_id) || new Set<string>();
+      for (const slug of proj.service_slugs || []) existing.add(slug);
+      stackMap.set(proj.user_id, existing);
+    }
 
     const preloaded: PreloadedContext = {
       snapshotMap,

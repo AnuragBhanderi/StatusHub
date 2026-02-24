@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { THEMES, type ThemeKey, type Theme } from "@/config/themes";
+import { THEMES } from "@/config/themes";
 import { CATEGORIES } from "@/config/services";
 import { STATUS_DISPLAY, MONITORING_DISPLAY } from "@/lib/normalizer";
 import { useUser } from "@/lib/user-context";
@@ -10,16 +10,20 @@ import StatusBanner from "@/components/StatusBanner";
 import SearchBar from "@/components/SearchBar";
 import CategoryPills from "@/components/CategoryPills";
 import ServiceCard from "@/components/ServiceCard";
-import MyStackToggle from "@/components/MyStackToggle";
 import ServiceDetailView from "@/components/ServiceDetailView";
 import UserMenu from "@/components/UserMenu";
-import NotificationBell from "@/components/NotificationBell";
+import ProjectSwitcher from "@/components/ProjectSwitcher";
+import ProjectManager from "@/components/ProjectManager";
+import UpgradeModal from "@/components/UpgradeModal";
 import { ToastProvider, useToast } from "@/components/Toast";
 import AppHeader from "@/components/AppHeader";
 import AppFooter from "@/components/AppFooter";
 import SignInModal from "@/components/SignInModal";
 import LoadingState from "@/components/LoadingState";
 import ErrorState from "@/components/ErrorState";
+import WhatsNewModal from "@/components/WhatsNewModal";
+import WhatsNewBadge from "@/components/WhatsNewBadge";
+import { CHANGELOG, getLatestChangelogId, getUnseenChangelog, type ChangelogEntry } from "@/config/changelog";
 import { usePushNotifications } from "@/lib/hooks/use-push-notifications";
 import { onToast } from "@/lib/user-context";
 
@@ -65,38 +69,81 @@ function DashboardInner() {
     user,
     isLoading: authLoading,
     isSupabaseEnabled,
-    preferences: { theme, compact, myStack, sort: sortMode },
+    preferences: { theme, compact, sort: sortMode },
     setTheme,
     setCompact,
     setSort: setSortMode,
-    toggleStack,
-    setMyStack,
+    // Projects
+    plan,
+    promoInfo,
+    projects,
+    activeProjectId,
+    activeProjectSlugs,
+    setActiveProject,
+    addServiceToProject,
+    removeServiceFromProject,
+    isInActiveProject,
+    createProject,
+    deleteProject,
+    renameProject,
+    showUpgradeModal,
+    setShowUpgradeModal,
     notificationPrefs,
-    setPushEnabled,
   } = useUser();
 
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [showMyStack, setShowMyStack] = useState(false);
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState("");
   const [services, setServices] = useState<ServiceData[]>([]);
   const [hasMounted, setHasMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [showSignIn, setShowSignIn] = useState(false);
+  const [managingProject, setManagingProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
+  const [hasNewAnnouncement, setHasNewAnnouncement] = useState(false);
+  const [unseenEntries, setUnseenEntries] = useState<ChangelogEntry[]>([]);
   const searchRef = useRef<HTMLInputElement>(null);
   const lastFetchTimeRef = useRef(Date.now());
   const [countdown, setCountdown] = useState(180);
 
-  // Browser push notifications for My Stack services
-  usePushNotifications(services, myStack, notificationPrefs.pushEnabled);
+  // Browser push notifications for active project services
+  usePushNotifications(services, activeProjectSlugs, notificationPrefs.pushEnabled);
 
   // Bridge user-context toast events to the Toast UI
   const { showToast } = useToast();
   useEffect(() => {
     return onToast((message, type) => showToast(message, type));
   }, [showToast]);
+
+  // Check for unseen changelog announcements
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const lastSeen = localStorage.getItem("statushub_changelog_last_seen");
+    const unseen = getUnseenChangelog(lastSeen);
+    if (unseen.length > 0) {
+      setUnseenEntries(unseen);
+      setHasNewAnnouncement(true);
+      const timer = setTimeout(() => setShowWhatsNew(true), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  const handleWhatsNewClose = useCallback(() => {
+    setShowWhatsNew(false);
+    setHasNewAnnouncement(false);
+    const latestId = getLatestChangelogId();
+    if (latestId) {
+      localStorage.setItem("statushub_changelog_last_seen", latestId);
+    }
+  }, []);
+
+  const handleWhatsNewOpen = useCallback(() => {
+    setUnseenEntries(CHANGELOG.slice(0, 1));
+    setShowWhatsNew(true);
+  }, []);
 
   // Keyboard shortcuts: Cmd/Ctrl+K to focus search, Esc to close detail
   useEffect(() => {
@@ -125,15 +172,44 @@ function DashboardInner() {
     if (serviceParam) {
       setSelectedSlug(serviceParam);
     }
-    const stackParam = params.get("stack");
-    if (stackParam && !user) {
-      const slugs = stackParam.split(",").filter(Boolean);
-      if (slugs.length > 0) {
-        setMyStack(slugs);
-        setShowMyStack(true);
-      }
+
+    // Handle promo code from URL
+    const promoParam = params.get("promo");
+    if (promoParam) {
+      // Store promo code to redeem after auth is ready
+      sessionStorage.setItem("statushub_pending_promo", promoParam);
+      // Clean URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete("promo");
+      window.history.replaceState({}, "", url.pathname + url.search);
     }
   }, []);
+
+  // Redeem pending promo code after user signs in
+  useEffect(() => {
+    if (!user) return;
+    const pendingPromo = sessionStorage.getItem("statushub_pending_promo");
+    if (!pendingPromo) return;
+    sessionStorage.removeItem("statushub_pending_promo");
+
+    fetch("/api/promo/activate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: pendingPromo }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          showToast("Pro trial activated!", "success");
+          setTimeout(() => window.location.reload(), 1500);
+        } else {
+          showToast(data.error || "Failed to redeem promo code", "error");
+        }
+      })
+      .catch(() => {
+        showToast("Failed to redeem promo code", "error");
+      });
+  }, [user, showToast]);
 
   // Fetch live data from API
   const fetchServices = useCallback(async () => {
@@ -144,7 +220,6 @@ function DashboardInner() {
         const data = await res.json();
         if (data.services && data.services.length > 0) {
           setServices(data.services);
-          setLastUpdated(new Date().toLocaleTimeString());
         } else {
           setError(true);
         }
@@ -181,9 +256,21 @@ function DashboardInner() {
 
   const t = THEMES[theme];
 
+  // Toggle service in active project
+  const toggleServiceInProject = useCallback(
+    (slug: string) => {
+      if (isInActiveProject(slug)) {
+        removeServiceFromProject(slug);
+      } else {
+        addServiceToProject(slug);
+      }
+    },
+    [isInActiveProject, removeServiceFromProject, addServiceToProject]
+  );
+
   const filtered = useMemo(() => {
     let list = services;
-    if (showMyStack) list = list.filter((s) => myStack.includes(s.slug));
+    if (showMyStack) list = list.filter((s) => activeProjectSlugs.includes(s.slug));
     if (activeCategory !== "All")
       list = list.filter((s) => s.category === activeCategory);
     if (search) {
@@ -211,7 +298,7 @@ function DashboardInner() {
       operational: list.filter((s) => s.currentStatus === "OPERATIONAL" && s.monitoringCount === 0).sort(sorter),
       total: list.length,
     };
-  }, [search, activeCategory, showMyStack, myStack, services, sortMode]);
+  }, [search, activeCategory, showMyStack, activeProjectSlugs, services, sortMode]);
 
   const operational = services.filter(
     (s) => s.currentStatus === "OPERATIONAL"
@@ -265,15 +352,123 @@ function DashboardInner() {
               gap: 10,
             }}
           >
-            <ThemeSwitcher theme={theme} setTheme={setTheme} t={t} />
-            {isSignedIn && (
-              <NotificationBell
-                pushEnabled={notificationPrefs.pushEnabled}
-                onToggle={() => setPushEnabled(!notificationPrefs.pushEnabled)}
+            {/* What's New badge */}
+            {!loading && (
+              <WhatsNewBadge
+                t={t}
+                hasNew={hasNewAnnouncement}
+                onClick={handleWhatsNewOpen}
+              />
+            )}
+
+            {/* Live indicator */}
+            {!loading && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <span
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    background: t.accentGreen,
+                    boxShadow: `0 0 8px ${t.accentGreen}80`,
+                    flexShrink: 0,
+                  }}
+                />
+                <span
+                  className="sh-live-text"
+                  style={{
+                    fontSize: 11,
+                    color: t.textMuted,
+                    fontFamily: "var(--font-mono)",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, "0")}
+                </span>
+              </div>
+            )}
+
+            {/* Project switcher */}
+            {!loading && isSignedIn && projects.length > 0 && (
+              <ProjectSwitcher
+                projects={projects}
+                activeProjectId={activeProjectId}
+                plan={plan}
+                onSelect={setActiveProject}
+                onUpgrade={() => setShowUpgradeModal(true)}
+                onCreateProject={async (name) => {
+                  const p = await createProject(name);
+                  if (p) {
+                    setActiveProject(p.id);
+                    showToast(`Created "${p.name}"`, "success");
+                  }
+                }}
+                onManageProject={() => setManagingProject(true)}
+                onShare={() => {
+                  const ap = projects.find((p) => p.id === activeProjectId) || projects[0];
+                  const url = `${window.location.origin}/dashboard?project=${ap?.slug || ""}`;
+                  navigator.clipboard.writeText(url).then(() => {
+                    showToast("Project link copied!", "success");
+                  });
+                }}
+                showProjectFilter={showMyStack}
+                onToggleFilter={() => setShowMyStack(!showMyStack)}
                 t={t}
               />
             )}
+
+            {/* Upgrade button for free plan (hide if on promo trial) */}
+            {isSignedIn && plan === "free" && !promoInfo?.isPromo && (
+              <button
+                onClick={() => setShowUpgradeModal(true)}
+                style={{
+                  background: "transparent",
+                  border: `1px solid ${t.accentPrimary}40`,
+                  borderRadius: 8,
+                  padding: "5px 12px",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: t.accentPrimary,
+                  cursor: "pointer",
+                  fontFamily: "var(--font-sans)",
+                  transition: "all 0.15s",
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = `${t.accentPrimary}10`;
+                  e.currentTarget.style.borderColor = `${t.accentPrimary}70`;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "transparent";
+                  e.currentTarget.style.borderColor = `${t.accentPrimary}40`;
+                }}
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill={t.accentPrimary} stroke="none">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+                <span className="sh-upgrade-label">Upgrade to Pro</span>
+              </button>
+            )}
+
+            {/* User menu (includes theme switcher) for signed-in users */}
             {isSignedIn && <UserMenu t={t} />}
+
+            {/* Theme switcher for non-authenticated users */}
+            {!isSignedIn && !authLoading && (
+              <ThemeSwitcher theme={theme} setTheme={setTheme} t={t} />
+            )}
+
+            {/* Sign In button for non-authenticated */}
             {isSupabaseEnabled && !user && !authLoading && (
               <button
                 onClick={() => setShowSignIn(true)}
@@ -301,79 +496,6 @@ function DashboardInner() {
               >
                 Sign In
               </button>
-            )}
-            {!loading && (
-              <>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: "50%",
-                      background: t.accentGreen,
-                      boxShadow: `0 0 8px ${t.accentGreen}80`,
-                      flexShrink: 0,
-                    }}
-                  />
-                  <span
-                    className="sh-live-text"
-                    style={{
-                      fontSize: 11,
-                      color: t.textMuted,
-                      fontFamily: "var(--font-mono)",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Live{lastUpdated ? ` · ${lastUpdated}` : ""}{!loading && ` · ${Math.floor(countdown / 60)}:${String(countdown % 60).padStart(2, "0")}`}
-                  </span>
-                </div>
-                {isSignedIn && (
-                  <MyStackToggle
-                    showMyStack={showMyStack}
-                    onToggle={() => setShowMyStack(!showMyStack)}
-                    count={myStack.length}
-                    t={t}
-                  />
-                )}
-                {isSignedIn && showMyStack && myStack.length > 0 && (
-                  <button
-                    onClick={() => {
-                      const url = `${window.location.origin}/dashboard?stack=${myStack.join(",")}`;
-                      navigator.clipboard.writeText(url).then(() => {
-                        showToast("Stack link copied!", "success");
-                      });
-                    }}
-                    title="Share your stack as a URL"
-                    aria-label="Share stack"
-                    style={{
-                      background: "transparent",
-                      border: `1px solid ${t.border}`,
-                      borderRadius: 8,
-                      width: 32,
-                      height: 32,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      cursor: "pointer",
-                      color: t.textMuted,
-                      transition: "all 0.15s",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8" />
-                      <polyline points="16 6 12 2 8 6" />
-                      <line x1="12" y1="2" x2="12" y2="15" />
-                    </svg>
-                  </button>
-                )}
-              </>
             )}
           </div>
         }
@@ -406,8 +528,8 @@ function DashboardInner() {
           <ServiceDetailView
             service={selectedService}
             onBack={() => setSelectedSlug(null)}
-            isInStack={isSignedIn ? myStack.includes(selectedService.slug) : false}
-            onToggleStack={() => isSignedIn && toggleStack(selectedService.slug)}
+            isInStack={isSignedIn ? isInActiveProject(selectedService.slug) : false}
+            onToggleStack={() => isSignedIn && toggleServiceInProject(selectedService.slug)}
             hideStackAction={!isSignedIn}
             t={t}
           />
@@ -422,6 +544,128 @@ function DashboardInner() {
               monitoringOnlyCount={monitoringOnlyCount}
               t={t}
             />
+
+            {/* Onboarding: create first project */}
+            {isSignedIn && projects.length === 0 && (
+              <div
+                className="animate-slide-up"
+                style={{
+                  margin: "20px 0",
+                  padding: "28px 24px",
+                  background: t.surface,
+                  border: `1px solid ${t.border}`,
+                  borderRadius: 14,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 16,
+                  textAlign: "center",
+                }}
+              >
+                <div style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 12,
+                  background: `linear-gradient(135deg, ${t.accentPrimary}20, ${t.accentSecondary}20)`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={t.accentPrimary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+                    <line x1="12" y1="11" x2="12" y2="17" />
+                    <line x1="9" y1="14" x2="15" y2="14" />
+                  </svg>
+                </div>
+                <div>
+                  <div style={{
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: t.text,
+                    marginBottom: 4,
+                  }}>
+                    Create your first project
+                  </div>
+                  <div style={{
+                    fontSize: 13,
+                    color: t.textMuted,
+                    maxWidth: 360,
+                    lineHeight: 1.5,
+                  }}>
+                    Projects let you group services you care about. Star services to add them to your project.
+                  </div>
+                </div>
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    const name = newProjectName.trim();
+                    if (!name) return;
+                    const p = await createProject(name);
+                    if (p) {
+                      setActiveProject(p.id);
+                      setNewProjectName("");
+                      showToast(`Created "${p.name}"`, "success");
+                    }
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    width: "100%",
+                    maxWidth: 380,
+                  }}
+                >
+                  <input
+                    type="text"
+                    value={newProjectName}
+                    onChange={(e) => setNewProjectName(e.target.value)}
+                    placeholder="e.g. Production Stack"
+                    maxLength={40}
+                    autoFocus
+                    style={{
+                      flex: 1,
+                      padding: "10px 14px",
+                      fontSize: 14,
+                      fontFamily: "var(--font-sans)",
+                      background: t.surfaceHover,
+                      border: `1px solid ${t.border}`,
+                      borderRadius: 10,
+                      color: t.text,
+                      outline: "none",
+                      transition: "border-color 0.15s",
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = t.accentPrimary;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = t.border;
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={!newProjectName.trim()}
+                    style={{
+                      padding: "10px 20px",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      fontFamily: "var(--font-sans)",
+                      background: newProjectName.trim()
+                        ? `linear-gradient(135deg, ${t.accentPrimary}, ${t.accentSecondary})`
+                        : t.tagBg,
+                      color: newProjectName.trim() ? "#fff" : t.textMuted,
+                      border: "none",
+                      borderRadius: 10,
+                      cursor: newProjectName.trim() ? "pointer" : "not-allowed",
+                      transition: "all 0.15s",
+                      whiteSpace: "nowrap",
+                      flexShrink: 0,
+                    }}
+                  >
+                    Create
+                  </button>
+                </form>
+              </div>
+            )}
 
             <SearchBar ref={searchRef} value={search} onChange={setSearch} t={t} />
 
@@ -545,7 +789,7 @@ function DashboardInner() {
                   }}
                 >
                   {showMyStack
-                    ? "No services in your stack yet."
+                    ? "No services in your project yet."
                     : "No services found."}
                 </div>
                 <div
@@ -605,8 +849,8 @@ function DashboardInner() {
                             monitoringCount={s.monitoringCount}
                             latestMonitoringIncident={s.latestMonitoringIncident}
                             compact={compact} onClick={() => setSelectedSlug(s.slug)}
-                            isInStack={isSignedIn ? myStack.includes(s.slug) : false}
-                            onToggleStack={() => isSignedIn && toggleStack(s.slug)}
+                            isInStack={isSignedIn ? isInActiveProject(s.slug) : false}
+                            onToggleStack={() => isSignedIn && toggleServiceInProject(s.slug)}
                             hideStackAction={!isSignedIn} t={t}
                           />
                         </div>
@@ -657,8 +901,8 @@ function DashboardInner() {
                             monitoringCount={s.monitoringCount}
                             latestMonitoringIncident={s.latestMonitoringIncident}
                             compact={compact} onClick={() => setSelectedSlug(s.slug)}
-                            isInStack={isSignedIn ? myStack.includes(s.slug) : false}
-                            onToggleStack={() => isSignedIn && toggleStack(s.slug)}
+                            isInStack={isSignedIn ? isInActiveProject(s.slug) : false}
+                            onToggleStack={() => isSignedIn && toggleServiceInProject(s.slug)}
                             hideStackAction={!isSignedIn} t={t}
                           />
                         </div>
@@ -708,8 +952,8 @@ function DashboardInner() {
                             monitoringCount={s.monitoringCount}
                             latestMonitoringIncident={s.latestMonitoringIncident}
                             compact={compact} onClick={() => setSelectedSlug(s.slug)}
-                            isInStack={isSignedIn ? myStack.includes(s.slug) : false}
-                            onToggleStack={() => isSignedIn && toggleStack(s.slug)}
+                            isInStack={isSignedIn ? isInActiveProject(s.slug) : false}
+                            onToggleStack={() => isSignedIn && toggleServiceInProject(s.slug)}
                             hideStackAction={!isSignedIn} t={t}
                           />
                         </div>
@@ -738,6 +982,29 @@ function DashboardInner() {
 
       {/* Sign In Modal */}
       {showSignIn && <SignInModal t={t} onClose={() => setShowSignIn(false)} />}
+
+      {/* Upgrade Modal */}
+      {showUpgradeModal && <UpgradeModal t={t} onClose={() => setShowUpgradeModal(false)} />}
+
+      {/* What's New Modal */}
+      {showWhatsNew && unseenEntries.length > 0 && (
+        <WhatsNewModal t={t} entries={unseenEntries} onClose={handleWhatsNewClose} />
+      )}
+
+      {/* Project Manager Modal */}
+      {managingProject && activeProjectId && (() => {
+        const mp = projects.find((p) => p.id === activeProjectId);
+        return mp ? (
+          <ProjectManager
+            project={mp}
+            plan={plan}
+            onRename={renameProject}
+            onDelete={deleteProject}
+            onClose={() => setManagingProject(false)}
+            t={t}
+          />
+        ) : null;
+      })()}
     </div>
   );
 }

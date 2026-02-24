@@ -1,34 +1,53 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { Theme } from "@/config/themes";
 import { useToast } from "@/components/Toast";
 
-const STATUS_EVENTS = [
-  { key: "major_outage", label: "Major outages", desc: "Complete service failures", color: "#ef4444" },
-  { key: "partial_outage", label: "Partial outages", desc: "Some features unavailable", color: "#ea580c" },
-  { key: "degraded", label: "Degraded performance", desc: "Slower than normal", color: "#ca8a04" },
-  { key: "maintenance", label: "Scheduled maintenance", desc: "Planned maintenance windows", color: "#448aff" },
-  { key: "recovery", label: "Service recoveries", desc: "When outages end and services come back", color: "#16a34a" },
-  { key: "maintenance_completed", label: "Maintenance completed", desc: "When scheduled maintenance ends", color: "#22c55e" },
+const ALL_EVENTS = [
+  { key: "major_outage", label: "Major Outage", short: "Major", color: "#ef4444", group: "status" },
+  { key: "partial_outage", label: "Partial Outage", short: "Partial", color: "#ea580c", group: "status" },
+  { key: "degraded", label: "Degraded", short: "Degraded", color: "#ca8a04", group: "status" },
+  { key: "maintenance", label: "Maintenance", short: "Maint.", color: "#448aff", group: "status" },
+  { key: "recovery", label: "Recovery", short: "Recovery", color: "#16a34a", group: "status" },
+  { key: "maintenance_completed", label: "Maint. Done", short: "Maint. Done", color: "#22c55e", group: "status" },
+  { key: "new_incident", label: "New Incident", short: "New", color: "#ef4444", group: "incident" },
+  { key: "incident_update", label: "Inc. Update", short: "Update", color: "#f59e0b", group: "incident" },
+  { key: "incident_resolved", label: "Inc. Resolved", short: "Resolved", color: "#16a34a", group: "incident" },
+  { key: "incident_escalated", label: "Escalated", short: "Escalated", color: "#ef4444", group: "incident" },
+  { key: "incident_de_escalated", label: "De-escalated", short: "De-escalated", color: "#22c55e", group: "incident" },
 ] as const;
 
-const INCIDENT_EVENTS = [
-  { key: "new_incident", label: "New incidents", desc: "When a new incident is reported", color: "#ef4444" },
-  { key: "incident_update", label: "Incident updates", desc: "When an ongoing incident gets a new update", color: "#f59e0b" },
-  { key: "incident_resolved", label: "Incident resolved", desc: "When a specific incident is marked resolved", color: "#16a34a" },
-  { key: "incident_escalated", label: "Incident escalated", desc: "When an incident's severity worsens", color: "#ef4444" },
-  { key: "incident_de_escalated", label: "Incident de-escalated", desc: "When an incident's severity improves", color: "#22c55e" },
+const ALL_KEYS = new Set(ALL_EVENTS.map((e) => e.key));
+
+const PRESETS = [
+  {
+    id: "all",
+    label: "All Events",
+    desc: "Everything — outages, incidents, maintenance, recoveries",
+    keys: new Set(ALL_EVENTS.map((e) => e.key)),
+  },
+  {
+    id: "outages",
+    label: "Outages & Incidents",
+    desc: "Outages, incidents, and recoveries — skip maintenance & minor updates",
+    keys: new Set([
+      "partial_outage", "major_outage", "recovery",
+      "new_incident", "incident_resolved", "incident_escalated", "incident_de_escalated",
+    ]),
+  },
+  {
+    id: "critical",
+    label: "Critical Only",
+    desc: "Only major outages, escalations, and resolutions",
+    keys: new Set(["major_outage", "recovery", "incident_escalated", "incident_resolved"]),
+  },
 ] as const;
 
-// Parse legacy presets or new comma-separated format
 function parseThreshold(threshold: string): Set<string> {
   switch (threshold) {
     case "all":
-      return new Set([
-        ...STATUS_EVENTS.map((e) => e.key),
-        ...INCIDENT_EVENTS.map((e) => e.key),
-      ]);
+      return new Set(ALL_EVENTS.map((e) => e.key));
     case "outages_only":
       return new Set([
         "partial_outage", "major_outage", "recovery",
@@ -39,6 +58,12 @@ function parseThreshold(threshold: string): Set<string> {
     default:
       return new Set(threshold.split(",").filter(Boolean));
   }
+}
+
+function setsEqual(a: Set<string>, b: Set<string>): boolean {
+  if (a.size !== b.size) return false;
+  for (const v of a) if (!b.has(v)) return false;
+  return true;
 }
 
 interface NotificationSettingsProps {
@@ -73,20 +98,27 @@ export default function NotificationSettings({
   const [enabledEvents, setEnabledEvents] = useState<Set<string>>(
     () => parseThreshold(severityThreshold || "all")
   );
+  const [customOpen, setCustomOpen] = useState(false);
   const [testStatus, setTestStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [saving, setSaving] = useState(false);
   const { showToast } = useToast();
 
+  const activePreset = useMemo(
+    () => PRESETS.find((p) => setsEqual(p.keys, enabledEvents))?.id ?? null,
+    [enabledEvents]
+  );
+
   const toggleEvent = (key: string) => {
     setEnabledEvents((prev) => {
       const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
+  };
+
+  const applyPreset = (keys: Set<string>) => {
+    setEnabledEvents(new Set(keys));
   };
 
   const pushPermission =
@@ -110,11 +142,8 @@ export default function NotificationSettings({
     setTestStatus("sending");
     try {
       const res = await fetch("/api/notifications/test-email", { method: "POST" });
-      if (res.ok) {
-        setTestStatus("sent");
-      } else {
-        setTestStatus("error");
-      }
+      if (res.ok) setTestStatus("sent");
+      else setTestStatus("error");
     } catch {
       setTestStatus("error");
     }
@@ -124,10 +153,11 @@ export default function NotificationSettings({
   const handleRequestPermission = async () => {
     if (typeof window === "undefined" || !("Notification" in window)) return;
     const result = await Notification.requestPermission();
-    if (result === "granted") {
-      setPush(true);
-    }
+    if (result === "granted") setPush(true);
   };
+
+  const statusEvents = ALL_EVENTS.filter((e) => e.group === "status");
+  const incidentEvents = ALL_EVENTS.filter((e) => e.group === "incident");
 
   return (
     <div
@@ -172,16 +202,7 @@ export default function NotificationSettings({
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke={t.accentPrimary}
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={t.accentPrimary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
               <path d="M13.73 21a2 2 0 0 1-3.46 0" />
             </svg>
@@ -202,16 +223,7 @@ export default function NotificationSettings({
               borderRadius: 4,
             }}
           >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke={t.textMuted}
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={t.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
@@ -220,22 +232,9 @@ export default function NotificationSettings({
 
         {/* Body */}
         <div style={{ padding: "18px" }}>
-          {/* Push Notifications Section */}
-          <div style={{ marginBottom: 22 }}>
-            <div
-              style={{
-                fontSize: 11,
-                fontWeight: 700,
-                color: t.textSecondary,
-                fontFamily: "var(--font-mono)",
-                letterSpacing: 0.5,
-                textTransform: "uppercase",
-                marginBottom: 10,
-              }}
-            >
-              Push Notifications
-            </div>
-
+          {/* Push Notifications */}
+          <div style={{ marginBottom: 20 }}>
+            <SectionLabel t={t}>Push Notifications</SectionLabel>
             <div
               style={{
                 display: "flex",
@@ -253,13 +252,12 @@ export default function NotificationSettings({
                 </div>
                 <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>
                   {pushPermission === "denied"
-                    ? "Blocked by browser — enable in browser settings"
+                    ? "Blocked by browser — enable in settings"
                     : pushPermission === "granted"
-                    ? "Get notified when My Stack services change"
+                    ? "Get notified when services change"
                     : "Click to request permission"}
                 </div>
               </div>
-
               {pushPermission === "default" ? (
                 <button
                   onClick={handleRequestPermission}
@@ -278,32 +276,14 @@ export default function NotificationSettings({
                   Enable
                 </button>
               ) : (
-                <ToggleSwitch
-                  enabled={push}
-                  onChange={setPush}
-                  disabled={pushPermission === "denied"}
-                  t={t}
-                />
+                <ToggleSwitch enabled={push} onChange={setPush} disabled={pushPermission === "denied"} t={t} />
               )}
             </div>
           </div>
 
-          {/* Email Notifications Section */}
-          <div style={{ marginBottom: 18 }}>
-            <div
-              style={{
-                fontSize: 11,
-                fontWeight: 700,
-                color: t.textSecondary,
-                fontFamily: "var(--font-mono)",
-                letterSpacing: 0.5,
-                textTransform: "uppercase",
-                marginBottom: 10,
-              }}
-            >
-              Email Alerts
-            </div>
-
+          {/* Email Alerts */}
+          <div>
+            <SectionLabel t={t}>Email Alerts</SectionLabel>
             <div
               style={{
                 padding: "14px",
@@ -316,17 +296,9 @@ export default function NotificationSettings({
               }}
             >
               {/* Email toggle */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                }}
-              >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: t.text }}>
-                    Email notifications
-                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: t.text }}>Email notifications</div>
                   <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>
                     Receive alerts even when the tab is closed
                   </div>
@@ -334,105 +306,197 @@ export default function NotificationSettings({
                 <ToggleSwitch enabled={email} onChange={setEmail} t={t} />
               </div>
 
-              {/* Email address */}
               {email && (
                 <>
+                  {/* Email address (read-only) */}
                   <div>
-                    <label
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        color: t.textMuted,
-                        display: "block",
-                        marginBottom: 6,
-                      }}
-                    >
+                    <label style={{ fontSize: 11, fontWeight: 600, color: t.textMuted, display: "block", marginBottom: 6 }}>
                       Email address
                     </label>
-                    <input
-                      type="email"
-                      value={addr}
-                      onChange={(e) => setAddr(e.target.value)}
-                      placeholder="you@example.com"
+                    <div
                       style={{
                         width: "100%",
                         padding: "8px 12px",
                         borderRadius: 6,
                         border: `1px solid ${t.border}`,
-                        background: t.searchBg,
-                        color: t.text,
+                        background: t.bg,
+                        color: t.textSecondary,
                         fontSize: 13,
                         fontFamily: "var(--font-sans)",
-                        outline: "none",
                         boxSizing: "border-box",
-                      }}
-                    />
-                  </div>
-
-                  {/* Event type toggles */}
-                  <div>
-                    <label
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        color: t.textMuted,
-                        display: "block",
-                        marginBottom: 8,
+                        opacity: 0.7,
                       }}
                     >
+                      {addr || "No email on file"}
+                    </div>
+                  </div>
+
+                  {/* Preset picker */}
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: t.textMuted, display: "block", marginBottom: 8 }}>
                       Notify me about
                     </label>
-
-                    {/* Service Status section */}
-                    <div style={{ marginBottom: 12 }}>
-                      <div style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        color: t.textSecondary,
-                        fontFamily: "var(--font-mono)",
-                        letterSpacing: 0.5,
-                        textTransform: "uppercase",
-                        marginBottom: 6,
-                        paddingLeft: 2,
-                      }}>
-                        Service Status
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                        {STATUS_EVENTS.map((evt) => (
-                          <EventToggle key={evt.key} evt={evt} checked={enabledEvents.has(evt.key)} onToggle={toggleEvent} t={t} />
-                        ))}
-                      </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {PRESETS.map((preset) => {
+                        const active = activePreset === preset.id;
+                        return (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => applyPreset(preset.keys)}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 10,
+                              padding: "10px 12px",
+                              borderRadius: 8,
+                              border: `1.5px solid ${active ? t.accentPrimary + "60" : t.border}`,
+                              background: active ? t.accentPrimary + "0a" : "transparent",
+                              cursor: "pointer",
+                              transition: "all 0.15s",
+                              textAlign: "left",
+                            }}
+                          >
+                            {/* Radio dot */}
+                            <div
+                              style={{
+                                width: 16,
+                                height: 16,
+                                borderRadius: "50%",
+                                border: `2px solid ${active ? t.accentPrimary : t.textFaint}`,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                flexShrink: 0,
+                                transition: "all 0.15s",
+                              }}
+                            >
+                              {active && (
+                                <div
+                                  style={{
+                                    width: 8,
+                                    height: 8,
+                                    borderRadius: "50%",
+                                    background: t.accentPrimary,
+                                  }}
+                                />
+                              )}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{preset.label}</div>
+                              <div style={{ fontSize: 11, color: t.textMuted, marginTop: 1 }}>{preset.desc}</div>
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
 
-                    {/* Incidents section */}
-                    <div>
-                      <div style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        color: t.textSecondary,
-                        fontFamily: "var(--font-mono)",
-                        letterSpacing: 0.5,
-                        textTransform: "uppercase",
-                        marginBottom: 6,
-                        paddingLeft: 2,
-                      }}>
-                        Incidents
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                        {INCIDENT_EVENTS.map((evt) => (
-                          <EventToggle key={evt.key} evt={evt} checked={enabledEvents.has(evt.key)} onToggle={toggleEvent} t={t} />
-                        ))}
-                      </div>
-                    </div>
+                    {/* Custom toggle */}
+                    <button
+                      type="button"
+                      onClick={() => setCustomOpen(!customOpen)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        marginTop: 10,
+                        padding: 0,
+                        background: "transparent",
+                        border: "none",
+                        cursor: "pointer",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: t.accentSecondary,
+                        fontFamily: "var(--font-sans)",
+                      }}
+                    >
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        style={{
+                          transform: customOpen ? "rotate(90deg)" : "rotate(0deg)",
+                          transition: "transform 0.2s",
+                        }}
+                      >
+                        <polyline points="9 18 15 12 9 6" />
+                      </svg>
+                      Customize individually
+                      {!activePreset && (
+                        <span
+                          style={{
+                            fontSize: 9,
+                            fontWeight: 700,
+                            background: t.accentPrimary + "18",
+                            color: t.accentPrimary,
+                            padding: "1px 6px",
+                            borderRadius: 3,
+                            fontFamily: "var(--font-mono)",
+                          }}
+                        >
+                          CUSTOM
+                        </span>
+                      )}
+                    </button>
 
-                    {enabledEvents.size === 0 && (
-                      <div style={{ fontSize: 11, color: "#ef4444", marginTop: 6, fontWeight: 500 }}>
-                        Select at least one event type to receive emails
+                    {/* Collapsible custom section */}
+                    {customOpen && (
+                      <div style={{ marginTop: 10 }}>
+                        {/* Status events */}
+                        <div style={{ marginBottom: 10 }}>
+                          <div style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            color: t.textMuted,
+                            fontFamily: "var(--font-mono)",
+                            letterSpacing: 0.5,
+                            textTransform: "uppercase",
+                            marginBottom: 6,
+                          }}>
+                            Service Status
+                          </div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                            {statusEvents.map((evt) => (
+                              <ChipToggle key={evt.key} evt={evt} checked={enabledEvents.has(evt.key)} onToggle={toggleEvent} t={t} />
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Incident events */}
+                        <div>
+                          <div style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            color: t.textMuted,
+                            fontFamily: "var(--font-mono)",
+                            letterSpacing: 0.5,
+                            textTransform: "uppercase",
+                            marginBottom: 6,
+                          }}>
+                            Incidents
+                          </div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                            {incidentEvents.map((evt) => (
+                              <ChipToggle key={evt.key} evt={evt} checked={enabledEvents.has(evt.key)} onToggle={toggleEvent} t={t} />
+                            ))}
+                          </div>
+                        </div>
+
+                        {enabledEvents.size === 0 && (
+                          <div style={{ fontSize: 11, color: "#ef4444", marginTop: 8, fontWeight: 500 }}>
+                            Select at least one event type to receive emails
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
 
-                  {/* Test email button */}
+                  {/* Test email */}
                   <button
                     onClick={handleTestEmail}
                     disabled={testStatus === "sending" || !addr}
@@ -453,16 +517,7 @@ export default function NotificationSettings({
                       opacity: !addr ? 0.5 : 1,
                     }}
                   >
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
                       <polyline points="22,6 12,13 2,6" />
                     </svg>
@@ -529,13 +584,15 @@ export default function NotificationSettings({
   );
 }
 
-function EventToggle({
+/* ── Compact chip toggle ── */
+
+function ChipToggle({
   evt,
   checked,
   onToggle,
   t,
 }: {
-  evt: { key: string; label: string; desc: string; color: string };
+  evt: { key: string; label: string; color: string };
   checked: boolean;
   onToggle: (key: string) => void;
   t: Theme;
@@ -545,59 +602,58 @@ function EventToggle({
       type="button"
       onClick={() => onToggle(evt.key)}
       style={{
-        display: "flex",
+        display: "inline-flex",
         alignItems: "center",
-        gap: 10,
-        padding: "7px 10px",
-        borderRadius: 6,
-        border: `1px solid ${checked ? evt.color + "35" : t.border}`,
-        background: checked ? evt.color + "08" : "transparent",
+        gap: 5,
+        padding: "4px 10px",
+        borderRadius: 20,
+        border: `1px solid ${checked ? evt.color + "40" : t.border}`,
+        background: checked ? evt.color + "12" : "transparent",
         cursor: "pointer",
         transition: "all 0.15s",
-        textAlign: "left",
+        fontSize: 11,
+        fontWeight: 500,
+        color: checked ? evt.color : t.textMuted,
+        fontFamily: "var(--font-sans)",
+        whiteSpace: "nowrap",
       }}
     >
       <div
         style={{
-          width: 16,
-          height: 16,
-          borderRadius: 4,
-          border: `2px solid ${checked ? evt.color : t.border}`,
-          background: checked ? evt.color : "transparent",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-          transition: "all 0.15s",
-        }}
-      >
-        {checked && (
-          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-        )}
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 500, color: t.text }}>
-          {evt.label}
-        </div>
-        <div style={{ fontSize: 11, color: t.textMuted, marginTop: 1 }}>
-          {evt.desc}
-        </div>
-      </div>
-      <div
-        style={{
-          width: 7,
-          height: 7,
+          width: 6,
+          height: 6,
           borderRadius: "50%",
           background: evt.color,
-          flexShrink: 0,
-          opacity: 0.7,
+          opacity: checked ? 1 : 0.35,
+          transition: "opacity 0.15s",
         }}
       />
+      {evt.label}
     </button>
   );
 }
+
+/* ── Section label ── */
+
+function SectionLabel({ t, children }: { t: Theme; children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        fontSize: 11,
+        fontWeight: 700,
+        color: t.textSecondary,
+        fontFamily: "var(--font-mono)",
+        letterSpacing: 0.5,
+        textTransform: "uppercase",
+        marginBottom: 10,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/* ── Toggle switch ── */
 
 function ToggleSwitch({
   enabled,
