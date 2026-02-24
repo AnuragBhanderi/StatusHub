@@ -1355,7 +1355,7 @@ export default function LandingPage() {
                 <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
               </svg>
               <span style={{ color: t.textFaint }}>
-                statushub.app/dashboard?project=my-project
+                statushub.orphilia.com/dashboard?s=k8m2x
               </span>
             </div>
           </div>
@@ -2032,11 +2032,11 @@ export default function LandingPage() {
               ),
             },
             {
-              title: "Open Source",
-              desc: "MIT licensed. Self-host or use our cloud. Your data.",
+              title: "Zero Config",
+              desc: "No API keys, no setup. Just open and start monitoring.",
               icon: (
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={t.accentPrimary} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
+                  <polyline points="20 6 9 17 4 12" />
                 </svg>
               ),
             },
@@ -2154,7 +2154,7 @@ export default function LandingPage() {
             }}
           >
             Start monitoring the services your product depends on. Set up
-            alerts in seconds. Free, open source, and zero configuration.
+            alerts in seconds. Free and zero configuration.
           </p>
           <div
             className="sh-landing-cta-buttons"
