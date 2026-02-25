@@ -113,7 +113,8 @@ interface StatuspageIncident {
   name: string;
   status: string;
   impact: string;
-  started_at: string;
+  started_at?: string;
+  created_at?: string;
   resolved_at: string | null;
   shortlink: string;
   incident_updates: StatuspageIncidentUpdate[];
@@ -619,7 +620,7 @@ function buildStatuspageLiveData(config: ServiceConfig, data: StatuspageSummary 
           title: trulyActiveIncidents[0].name,
           status: mapIncidentStatus(trulyActiveIncidents[0].status),
           impact: mapIncidentImpact(trulyActiveIncidents[0].impact),
-          startedAt: trulyActiveIncidents[0].started_at,
+          startedAt: trulyActiveIncidents[0].started_at || trulyActiveIncidents[0].created_at || new Date().toISOString(),
         }
       : null,
     monitoringCount: monitoringIncidents.length,
@@ -629,7 +630,7 @@ function buildStatuspageLiveData(config: ServiceConfig, data: StatuspageSummary 
           title: monitoringIncidents[0].name,
           status: mapIncidentStatus(monitoringIncidents[0].status),
           impact: mapIncidentImpact(monitoringIncidents[0].impact),
-          startedAt: monitoringIncidents[0].started_at,
+          startedAt: monitoringIncidents[0].started_at || monitoringIncidents[0].created_at || new Date().toISOString(),
         }
       : null,
     components: (data.components ?? [])
@@ -643,7 +644,7 @@ function buildStatuspageLiveData(config: ServiceConfig, data: StatuspageSummary 
       title: i.name,
       status: mapIncidentStatus(i.status),
       impact: mapIncidentImpact(i.impact),
-      startedAt: i.started_at,
+      startedAt: i.started_at || i.created_at || new Date().toISOString(),
       updateCount: i.incident_updates?.length ?? 0,
       latestUpdateBody: i.incident_updates?.[0]?.body || undefined,
     })),
