@@ -892,7 +892,7 @@ export async function fetchServiceDetailLive(slug: string): Promise<LiveServiceD
       title: inc.name,
       status: mapIncidentStatus(inc.status),
       impact: mapIncidentImpact(inc.impact),
-      startedAt: inc.started_at,
+      startedAt: inc.started_at || inc.created_at || new Date().toISOString(),
       resolvedAt: inc.resolved_at,
       sourceUrl: inc.shortlink || null,
       updates: inc.incident_updates.map((u) => ({
