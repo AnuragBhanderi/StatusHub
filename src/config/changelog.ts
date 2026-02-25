@@ -14,9 +14,33 @@ export interface ChangelogEntry {
 // Add new entries at the TOP. The first entry is shown to new users.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    id: "2026-02-25-1-minute-refresh",
+    date: "2026-02-25",
+    title: "1-Minute Refresh & Faster Alerts",
+    summary:
+      "Dashboard now refreshes every minute instead of every 3 minutes, so you see status changes faster.",
+    features: [
+      {
+        title: "1-Minute Dashboard Refresh",
+        description:
+          "The dashboard now auto-refreshes every 60 seconds, synced with our cron monitoring for near real-time updates.",
+      },
+      {
+        title: "Faster Server-Side Caching",
+        description:
+          "Reduced upstream cache times so status changes from AWS, GCP, Azure, and all services appear sooner.",
+      },
+      {
+        title: "48 Services Monitored",
+        description:
+          "Monitor AWS, GCP, Azure, GitHub, Stripe, Vercel, OpenAI, Anthropic, and more — all from one dashboard.",
+      },
+    ],
+  },
+  {
     id: "2026-02-23-projects-and-alerts",
     date: "2026-02-23",
-  title: "Projects, Alerts & Pro Plans",
+    title: "Projects, Alerts & Pro Plans",
     summary:
       "Organize services into projects, get notified when they go down, and unlock more with Pro.",
     features: [
