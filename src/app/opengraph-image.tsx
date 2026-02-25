@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 
 export const runtime = "edge";
-export const alt = "StatusHub - Monitor 40+ tech service statuses in one dashboard";
+export const alt = "StatusHub - Monitor 48 tech service statuses in one dashboard";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -103,7 +103,7 @@ export default function Image() {
             display: "flex",
           }}
         >
-          Monitor 40+ tech services in one dashboard
+          Monitor 48 tech services in one dashboard
         </div>
 
         {/* Service pills */}
