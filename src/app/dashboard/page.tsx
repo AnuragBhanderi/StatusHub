@@ -116,7 +116,7 @@ function DashboardInner() {
   const [showTrialExpired, setShowTrialExpired] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const lastFetchTimeRef = useRef(Date.now());
-  const [countdown, setCountdown] = useState(180);
+  const [countdown, setCountdown] = useState(60);
 
   // Browser push notifications for active project services
   usePushNotifications(services, activeProjectSlugs, notificationPrefs.pushEnabled);
@@ -274,19 +274,19 @@ function DashboardInner() {
     }
     setLoading(false);
     lastFetchTimeRef.current = Date.now();
-    setCountdown(180);
+    setCountdown(60);
   }, []);
 
   useEffect(() => {
     fetchServices();
-    const interval = setInterval(fetchServices, 180000); // 3 min
+    const interval = setInterval(fetchServices, 60000); // 1 min
     return () => clearInterval(interval);
   }, []);
 
   // Countdown timer for next refresh
   useEffect(() => {
     const id = setInterval(() => {
-      const remaining = 180 - Math.floor((Date.now() - lastFetchTimeRef.current) / 1000);
+      const remaining = 60 - Math.floor((Date.now() - lastFetchTimeRef.current) / 1000);
       setCountdown(Math.max(0, remaining));
     }, 1000);
     return () => clearInterval(id);
@@ -1107,7 +1107,7 @@ function DashboardInner() {
                   letterSpacing: 0.3,
                 }}
               >
-                {services.length} services · Refreshes every 3 min
+                {services.length} services · Refreshes every 1 min
               </span>
             </AppFooter>
           </>

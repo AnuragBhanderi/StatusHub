@@ -141,7 +141,7 @@ async function fetchStatuspageSummary(apiEndpoint: string): Promise<StatuspageSu
     const res = await fetch(apiEndpoint, {
       headers: { "User-Agent": "StatusHub/1.0" },
       signal: AbortSignal.timeout(15000),
-      next: { revalidate: 120 },
+      next: { revalidate: 60 },
     });
     if (!res.ok) return null;
     return await res.json();
@@ -191,12 +191,12 @@ async function fetchAwsHealth(): Promise<AwsHealthResult | null> {
       fetch("https://servicedata-us-east-1-prod.s3.amazonaws.com/services.json", {
         headers: { "User-Agent": "StatusHub/1.0" },
         signal: AbortSignal.timeout(15000),
-        next: { revalidate: 300 },
+        next: { revalidate: 120 },
       }),
       fetch("https://health.aws.amazon.com/public/currentevents", {
         headers: { "User-Agent": "StatusHub/1.0" },
         signal: AbortSignal.timeout(15000),
-        next: { revalidate: 120 },
+        next: { revalidate: 60 },
       }),
     ]);
 
@@ -320,12 +320,12 @@ async function fetchGcpStatus(): Promise<GcpResult | null> {
       fetch("https://status.cloud.google.com/products.json", {
         headers: { "User-Agent": "StatusHub/1.0" },
         signal: AbortSignal.timeout(15000),
-        next: { revalidate: 300 },
+        next: { revalidate: 120 },
       }),
       fetch("https://status.cloud.google.com/incidents.json", {
         headers: { "User-Agent": "StatusHub/1.0" },
         signal: AbortSignal.timeout(15000),
-        next: { revalidate: 120 },
+        next: { revalidate: 60 },
       }),
     ]);
 
@@ -393,7 +393,7 @@ async function fetchAzureStatus(): Promise<AzureResult | null> {
     const res = await fetch("https://azure.status.microsoft/en-us/status", {
       headers: { "User-Agent": "StatusHub/1.0" },
       signal: AbortSignal.timeout(25000),
-      next: { revalidate: 300 },
+      next: { revalidate: 120 },
     });
     if (!res.ok) return null;
     const html = await res.text();

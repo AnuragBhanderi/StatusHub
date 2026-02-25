@@ -16,7 +16,7 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     id: "2026-02-23-projects-and-alerts",
     date: "2026-02-23",
-    title: "Projects, Alerts & Pro Plans",
+  title: "Projects, Alerts & Pro Plans",
     summary:
       "Organize services into projects, get notified when they go down, and unlock more with Pro.",
     features: [
