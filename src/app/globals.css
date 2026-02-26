@@ -304,12 +304,6 @@ html, body {
     font-size: 36px !important;
     letter-spacing: -1px !important;
   }
-  .sh-landing-features {
-    grid-template-columns: 1fr !important;
-  }
-  .sh-landing-preview {
-    padding-bottom: 48px !important;
-  }
   .sh-landing-cta-buttons {
     flex-direction: column !important;
     width: 100% !important;
@@ -322,36 +316,15 @@ html, body {
     width: 100% !important;
     justify-content: center !important;
   }
-  .sh-feature-row {
-    grid-template-columns: 1fr !important;
-    gap: 32px !important;
-  }
-  .sh-feature-row-reverse > *:first-child {
-    order: 1 !important;
-  }
-  .sh-feature-row-reverse > *:last-child {
-    order: 0 !important;
-  }
-  .sh-landing-steps {
-    grid-template-columns: 1fr !important;
-    gap: 12px !important;
-  }
-  .sh-pricing-grid {
-    grid-template-columns: 1fr !important;
-    gap: 12px !important;
-  }
-  .sh-landing-features-grid {
+  .sh-value-cards {
     grid-template-columns: 1fr 1fr !important;
     gap: 8px !important;
   }
+  .sh-live-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)) !important;
+  }
   .sh-hide-mobile {
     display: none !important;
-  }
-  .sh-trust-stats {
-    gap: 0 !important;
-  }
-  .sh-trust-stats > div {
-    padding: 0 12px !important;
   }
 }
 
@@ -407,11 +380,10 @@ html, body {
     font-size: 28px !important;
     letter-spacing: -0.5px !important;
   }
-  .sh-landing-features {
+  .sh-value-cards {
     grid-template-columns: 1fr !important;
-    gap: 8px !important;
   }
-  .sh-landing-features-grid {
+  .sh-live-grid {
     grid-template-columns: 1fr !important;
   }
 }
