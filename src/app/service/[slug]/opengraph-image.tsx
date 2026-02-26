@@ -93,7 +93,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
 
         {/* Footer */}
         <div style={{ position: "absolute", bottom: 32, display: "flex", alignItems: "center", gap: 8, fontSize: 16, color: "rgba(255,255,255,0.3)" }}>
-          statushub.orphilia.com/service/{slug}
+          statushub.live/service/{slug}
         </div>
       </div>
     ),

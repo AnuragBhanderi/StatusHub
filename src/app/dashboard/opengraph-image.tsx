@@ -82,7 +82,7 @@ export default function Image() {
 
         {/* Footer */}
         <div style={{ position: "absolute", bottom: 32, display: "flex", alignItems: "center", gap: 8, fontSize: 16, color: "rgba(255,255,255,0.3)" }}>
-          statushub.orphilia.com/dashboard
+          statushub.live/dashboard
         </div>
       </div>
     ),

@@ -28,7 +28,7 @@ export async function POST() {
     );
   }
 
-  const statusHubUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://statushub.orphilia.com";
+  const statusHubUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://statushub.live";
 
   const { subject, html, text } = notificationEmail(
     {

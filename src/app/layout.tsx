@@ -27,12 +27,12 @@ export const metadata: Metadata = {
     "developer tools",
     "infrastructure monitoring",
   ],
-  metadataBase: new URL("https://statushub.orphilia.com"),
+  metadataBase: new URL("https://statushub.live"),
   openGraph: {
     title: "StatusHub - Unified Tech Status Dashboard",
     description:
       "Monitor the real-time status of all your tech dependencies in one place. Track 40+ services including AWS, GitHub, Vercel, Stripe, and more.",
-    url: "https://statushub.orphilia.com",
+    url: "https://statushub.live",
     siteName: "StatusHub",
     type: "website",
     locale: "en_US",

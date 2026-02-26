@@ -90,7 +90,7 @@ export async function processServiceEvents(
     }
 
     const transporter = getTransporter();
-    const statusHubUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://statushub.orphilia.com";
+    const statusHubUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://statushub.live";
 
     for (const event of events) {
       for (const pref of allPrefs) {
@@ -318,7 +318,7 @@ export async function flushPendingEvents(
   }
 
   const transporter = getTransporter();
-  const statusHubUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://statushub.orphilia.com";
+  const statusHubUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://statushub.live";
   let flushed = 0;
 
   for (const [, rows] of groups) {
