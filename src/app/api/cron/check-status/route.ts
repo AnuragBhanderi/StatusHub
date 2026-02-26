@@ -7,6 +7,7 @@ import type { IncidentSnapshotEntry } from "@/lib/types/supabase";
 import { resolvePlanFromRow, getPlanLimits } from "@/lib/subscription";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
   // Verify cron secret — supports both header and query param (for cron-job.org)

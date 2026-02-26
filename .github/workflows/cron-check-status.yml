@@ -11,8 +11,9 @@ jobs:
     steps:
       - name: Trigger status check
         run: |
-          response=$(curl -s -w "\n%{http_code}" \
+          response=$(curl -sL -w "\n%{http_code}" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            --max-time 55 \
             "${{ secrets.SITE_URL }}/api/cron/check-status")
 
           http_code=$(echo "$response" | tail -1)
