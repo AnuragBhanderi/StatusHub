@@ -1,22 +1,25 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Dashboard | StatusHub",
+  title: "Live Status Dashboard - Monitor 48+ Cloud Services | StatusHub",
   description:
-    "Monitor the real-time status of 48 cloud services including AWS, GitHub, Vercel, Stripe, and more. Auto-refreshes every minute.",
+    "Real-time status dashboard for AWS, GitHub, Vercel, Stripe, OpenAI, Slack, and 42 more cloud services. Auto-refreshes every minute. Free, no signup.",
+  alternates: {
+    canonical: "https://statushub.live/dashboard",
+  },
   openGraph: {
-    title: "Dashboard | StatusHub",
+    title: "Live Status Dashboard - Monitor 48+ Cloud Services | StatusHub",
     description:
-      "Monitor the real-time status of 48 cloud services including AWS, GitHub, Vercel, Stripe, and more. Auto-refreshes every minute.",
+      "Real-time status dashboard for AWS, GitHub, Vercel, Stripe, OpenAI, and 43 more services. Auto-refreshes every minute.",
     url: "/dashboard",
     siteName: "StatusHub",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Dashboard | StatusHub",
+    title: "Live Status Dashboard | StatusHub",
     description:
-      "Monitor 48 cloud service statuses in real-time. Auto-refreshes every minute.",
+      "Monitor 48+ cloud service statuses in real-time. Auto-refreshes every minute. Free.",
   },
 };
 
