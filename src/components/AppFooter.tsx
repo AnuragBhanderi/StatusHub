@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { Children, type ReactNode } from "react";
 import type { Theme } from "@/config/themes";
 
 interface AppFooterProps {
@@ -9,6 +9,8 @@ interface AppFooterProps {
 }
 
 export default function AppFooter({ t, children }: AppFooterProps) {
+  const childArray = Children.toArray(children).filter(Boolean);
+
   return (
     <footer
       style={{
@@ -28,7 +30,7 @@ export default function AppFooter({ t, children }: AppFooterProps) {
           gap: 12,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <div
             style={{
               width: 20,
@@ -55,12 +57,12 @@ export default function AppFooter({ t, children }: AppFooterProps) {
           >
             StatusHub
           </span>
-          {children && (
-            <>
-              <span style={{ fontSize: 11, color: t.footerColor, fontFamily: "var(--font-mono)" }}>·</span>
-              {children}
-            </>
-          )}
+          {childArray.map((child, i) => (
+            <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 11, color: t.footerColor, fontFamily: "var(--font-mono)", opacity: 0.4 }}>·</span>
+              {child}
+            </span>
+          ))}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <span

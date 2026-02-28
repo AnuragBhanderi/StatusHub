@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { THEMES } from "@/config/themes";
 import { services as serviceConfigs } from "@/config/services";
 import { useUser } from "@/lib/user-context";
@@ -85,9 +85,12 @@ export default function LandingPage() {
   const [categoryCount, setCategoryCount] = useState(0);
   const [hasMounted, setHasMounted] = useState(false);
   const [servicesLoading, setServicesLoading] = useState(true);
+  const [lastFetchTime, setLastFetchTime] = useState<number | null>(null);
+  const [secondsAgo, setSecondsAgo] = useState(0);
+  const [showExitIntent, setShowExitIntent] = useState(false);
+  const [isReturningVisitor, setIsReturningVisitor] = useState(false);
 
-  useEffect(() => {
-    setHasMounted(true);
+  const fetchServices = useCallback(() => {
     fetch("/api/services")
       .then((res) => res.json())
       .then((data) => {
@@ -95,26 +98,24 @@ export default function LandingPage() {
           const all: PreviewService[] = data.services;
           setTotalCount(all.length);
           setCategoryCount(new Set(all.map((s) => s.category)).size);
-          // Curated list of recognizable services developers care about
           const curated = [
             "github", "aws", "vercel", "stripe",
             "openai", "cloudflare", "slack", "datadog",
           ];
           const curatedSet = new Set(curated);
-          // Pick curated ones first (in order), then fill with any non-operational
           const picked: PreviewService[] = [];
           const bySlug = new Map(all.map((s) => [s.slug, s]));
           for (const slug of curated) {
             const s = bySlug.get(slug);
             if (s) picked.push(s);
           }
-          // If any service has an issue and isn't already picked, prepend it
           for (const s of all) {
             if (s.currentStatus !== "OPERATIONAL" && !curatedSet.has(s.slug)) {
               picked.unshift(s);
             }
           }
           setServices(picked.slice(0, 8));
+          setLastFetchTime(Date.now());
         }
       })
       .catch(() => {})
@@ -123,12 +124,58 @@ export default function LandingPage() {
       });
   }, []);
 
-  const valuePropsReveal = useReveal();
+  useEffect(() => {
+    setHasMounted(true);
+    fetchServices();
+    const interval = setInterval(fetchServices, 60000);
+    return () => clearInterval(interval);
+  }, [fetchServices]);
+
+  // Live urgency ticker — shows seconds since last data refresh
+  useEffect(() => {
+    if (!lastFetchTime) return;
+    const interval = setInterval(() => {
+      setSecondsAgo(Math.floor((Date.now() - lastFetchTime) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [lastFetchTime]);
+
+  // Return visitor detection
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("sh_visited")) setIsReturningVisitor(true);
+      localStorage.setItem("sh_visited", "1");
+    } catch {}
+  }, []);
+
+  // Exit intent — fires once when cursor leaves viewport (desktop only)
+  useEffect(() => {
+    if (!isSupabaseEnabled || user) return;
+    const handler = (e: MouseEvent) => {
+      if (e.clientY <= 0 && !sessionStorage.getItem("sh_exit_dismissed")) {
+        setShowExitIntent(true);
+        document.removeEventListener("mouseout", handler);
+      }
+    };
+    const timeout = setTimeout(() => {
+      document.addEventListener("mouseout", handler);
+    }, 5000);
+    return () => {
+      clearTimeout(timeout);
+      document.removeEventListener("mouseout", handler);
+    };
+  }, [isSupabaseEnabled, user]);
+
   const proofReveal = useReveal();
 
   if (!hasMounted) {
     return <div style={{ minHeight: "100vh", background: "transparent" }} />;
   }
+
+  const dismissExitIntent = () => {
+    setShowExitIntent(false);
+    try { sessionStorage.setItem("sh_exit_dismissed", "1"); } catch {}
+  };
 
   const handlePrimaryCTA = () => {
     if (isSupabaseEnabled && !user) {
@@ -254,56 +301,26 @@ export default function LandingPage() {
         />
 
         <div style={{ position: "relative", zIndex: 1 }}>
-          {/* Status pill — static first, then live */}
-          <div
-            className="animate-fade-in"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              background: servicesLoading
-                ? `${t.textMuted}08`
-                : `${t.accentGreen}12`,
-              border: `1px solid ${servicesLoading ? t.border : `${t.accentGreen}25`}`,
-              borderRadius: 20,
-              padding: "5px 14px",
-              marginBottom: 28,
-              fontSize: 12,
-              fontWeight: 600,
-              color: servicesLoading ? t.textMuted : t.accentGreen,
-              fontFamily: "var(--font-mono)",
-              minHeight: 28,
-            }}
-          >
-            {servicesLoading ? (
-              <>
-                <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: "50%",
-                    background: t.textMuted,
-                    opacity: 0.5,
-                  }}
-                />
-                {totalCount} services monitored
-              </>
-            ) : (
-              <>
-                <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: "50%",
-                    background: t.accentGreen,
-                    boxShadow: `0 0 8px ${t.accentGreen}80`,
-                  }}
-                />
-                {services.filter((s) => s.currentStatus === "OPERATIONAL").length}/
-                {totalCount} services operational
-              </>
-            )}
-          </div>
+          {/* Return visitor urgency nudge — action-oriented, not passive */}
+          {isReturningVisitor && !servicesLoading && (
+            <p
+              className="animate-fade-in"
+              style={{
+                fontSize: 13,
+                fontWeight: 500,
+                color: services.some((s) => s.currentStatus !== "OPERATIONAL")
+                  ? "#ef4444"
+                  : t.textMuted,
+                marginBottom: 20,
+                fontFamily: "var(--font-mono)",
+                letterSpacing: 0.2,
+              }}
+            >
+              {services.some((s) => s.currentStatus !== "OPERATIONAL")
+                ? `${services.find((s) => s.currentStatus !== "OPERATIONAL")?.name} is reporting issues — are you getting notified?`
+                : "Welcome back — your stack is still unmonitored"}
+            </p>
+          )}
 
           {/* Headline — pain first */}
           <h1
@@ -346,10 +363,67 @@ export default function LandingPage() {
               animationFillMode: "both",
             }}
           >
-            AWS, GitHub, Vercel, Stripe, OpenAI and{" "}
-            {totalCount > 5 ? totalCount - 5 : "40+"} more services.
-            Real-time status, instant alerts, one dashboard. Free.
+            Know in 2 seconds if your stack is down.
+            <br />
+            Get alerted before your users notice.
           </p>
+
+          {/* Inline proof strip — product working above the fold */}
+          {!servicesLoading && services.length > 0 && (
+            <div
+              className="animate-fade-in"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 16,
+                marginBottom: 28,
+                animationDelay: "0.25s",
+                animationFillMode: "both",
+                flexWrap: "wrap",
+              }}
+            >
+              {services.filter((s) => ["github", "aws", "vercel", "stripe", "openai"].includes(s.slug)).slice(0, 5).map((s) => {
+                const isOp = s.currentStatus === "OPERATIONAL";
+                return (
+                  <span
+                    key={s.slug}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 5,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      color: t.textMuted,
+                      fontFamily: "var(--font-mono)",
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 5,
+                        height: 5,
+                        borderRadius: "50%",
+                        background: isOp ? "#16a34a" : "#ef4444",
+                        boxShadow: `0 0 4px ${isOp ? "#16a34a" : "#ef4444"}66`,
+                        flexShrink: 0,
+                      }}
+                    />
+                    {s.name}
+                  </span>
+                );
+              })}
+              <span
+                style={{
+                  fontSize: 11,
+                  color: t.textMuted,
+                  opacity: 0.5,
+                  fontFamily: "var(--font-mono)",
+                }}
+              >
+                +{totalCount - 5} more
+              </span>
+            </div>
+          )}
 
           {/* CTA buttons */}
           <div
@@ -364,80 +438,48 @@ export default function LandingPage() {
             }}
           >
             {isSupabaseEnabled && !user ? (
-              <>
-                <button
-                  onClick={handlePrimaryCTA}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 8,
-                    background: t.accentPrimary,
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: 10,
-                    padding: "13px 30px",
-                    fontSize: 15,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    fontFamily: "var(--font-sans)",
-                    transition: "all 0.2s ease",
-                    boxShadow: `0 0 20px ${t.accentPrimary}30`,
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "translateY(-1px)";
-                    e.currentTarget.style.boxShadow = `0 0 30px ${t.accentPrimary}50`;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.boxShadow = `0 0 20px ${t.accentPrimary}30`;
-                  }}
+              <button
+                onClick={handlePrimaryCTA}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  background: t.accentPrimary,
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 10,
+                  padding: "13px 30px",
+                  fontSize: 15,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "var(--font-sans)",
+                  transition: "all 0.2s ease",
+                  boxShadow: `0 0 20px ${t.accentPrimary}30`,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-1px)";
+                  e.currentTarget.style.boxShadow = `0 0 30px ${t.accentPrimary}50`;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = `0 0 20px ${t.accentPrimary}30`;
+                }}
+              >
+                {isReturningVisitor ? "Start Your Free Trial" : "Get Free Alerts"}
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 >
-                  Get Started Free
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                    <polyline points="12 5 19 12 12 19" />
-                  </svg>
-                </button>
-                <Link
-                  href="/dashboard"
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 8,
-                    background: "transparent",
-                    color: t.textSecondary,
-                    border: `1px solid ${t.border}`,
-                    borderRadius: 10,
-                    padding: "13px 26px",
-                    fontSize: 15,
-                    fontWeight: 500,
-                    textDecoration: "none",
-                    fontFamily: "var(--font-sans)",
-                    transition: "all 0.2s ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = t.borderHover;
-                    e.currentTarget.style.background = t.surfaceHover;
-                    e.currentTarget.style.transform = "translateY(-1px)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = t.border;
-                    e.currentTarget.style.background = "transparent";
-                    e.currentTarget.style.transform = "translateY(0)";
-                  }}
-                >
-                  View Dashboard
-                </Link>
-              </>
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                  <polyline points="12 5 19 12 12 19" />
+                </svg>
+              </button>
             ) : (
               <Link
                 href="/dashboard"
@@ -483,6 +525,25 @@ export default function LandingPage() {
               </Link>
             )}
           </div>
+
+          {/* Free trial note — urgency + low friction */}
+          {isSupabaseEnabled && !user && (
+            <p
+              className="animate-fade-in"
+              style={{
+                fontSize: 12,
+                color: t.textMuted,
+                marginTop: 16,
+                fontFamily: "var(--font-mono)",
+                letterSpacing: 0.3,
+                opacity: 0.7,
+                animationDelay: "0.4s",
+                animationFillMode: "both",
+              }}
+            >
+              One click · Pro trial included · No credit card
+            </p>
+          )}
         </div>
       </section>
 
@@ -528,6 +589,19 @@ export default function LandingPage() {
               }}
             />
             Live Status
+            {lastFetchTime && (
+              <span
+                style={{
+                  fontWeight: 400,
+                  textTransform: "none",
+                  letterSpacing: 0,
+                  opacity: 0.6,
+                  fontSize: 10,
+                }}
+              >
+                {" "}· {secondsAgo < 3 ? "Just now" : `${secondsAgo}s ago`}
+              </span>
+            )}
           </div>
           <Link
             href="/dashboard"
@@ -545,7 +619,7 @@ export default function LandingPage() {
             onMouseEnter={(e) => (e.currentTarget.style.gap = "8px")}
             onMouseLeave={(e) => (e.currentTarget.style.gap = "4px")}
           >
-            View all {totalCount} services
+            Explore all {totalCount} services
             <svg
               width="12"
               height="12"
@@ -638,11 +712,13 @@ export default function LandingPage() {
                       border: `1px solid ${isOp ? t.border : "rgba(239,68,68,0.25)"}`,
                       borderRadius: 10,
                       padding: "14px 16px",
-                      textDecoration: "none",
+                      cursor: "pointer",
                       display: "flex",
                       alignItems: "center",
                       gap: 12,
                       transition: "all 0.2s ease",
+                      textDecoration: "none",
+                      color: "inherit",
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.borderColor = t.borderHover;
@@ -703,166 +779,7 @@ export default function LandingPage() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════
-          SECTION 3 — VALUE PROPS
-          ═══════════════════════════════════════════════════════ */}
-      <section
-        ref={valuePropsReveal.ref}
-        style={{
-          maxWidth: 1000,
-          margin: "0 auto",
-          padding: "0 24px 80px",
-          ...valuePropsReveal.style,
-        }}
-      >
-        <div
-          className="sh-value-cards"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            gap: 12,
-          }}
-        >
-          {[
-            {
-              title: `${totalCount}+ Services`,
-              desc: "AWS, GitHub, Vercel, Stripe, OpenAI and more. Polled every 60 seconds from official APIs.",
-              icon: (
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke={t.accentPrimary}
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <rect x="3" y="3" width="7" height="7" rx="1" />
-                  <rect x="14" y="3" width="7" height="7" rx="1" />
-                  <rect x="3" y="14" width="7" height="7" rx="1" />
-                  <rect x="14" y="14" width="7" height="7" rx="1" />
-                </svg>
-              ),
-            },
-            {
-              title: "Instant Alerts",
-              desc: "Email and push notifications when your services go down. Know before your users do.",
-              icon: (
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke={t.accentPrimary}
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                </svg>
-              ),
-            },
-            {
-              title: "Project Boards",
-              desc: "Star the services your team depends on. Organize into projects. Share with a link.",
-              icon: (
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke={t.accentPrimary}
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                </svg>
-              ),
-            },
-            {
-              title: "Incident Timelines",
-              desc: "Full update history from investigating to resolved. Track outage duration at a glance.",
-              icon: (
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke={t.accentPrimary}
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <circle cx="12" cy="12" r="10" />
-                  <polyline points="12 6 12 12 16 14" />
-                </svg>
-              ),
-            },
-          ].map((card, i) => (
-            <div
-              key={card.title}
-              style={{
-                padding: "28px 22px",
-                borderRadius: 12,
-                background: t.surface,
-                border: `1px solid ${t.border}`,
-                transition: "all 0.25s ease",
-                transitionDelay: `${i * 0.05}s`,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = t.borderHover;
-                e.currentTarget.style.transform = "translateY(-3px)";
-                e.currentTarget.style.boxShadow = t.shadowLg;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = t.border;
-                e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = "none";
-              }}
-            >
-              <div
-                style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 11,
-                  background: `${t.accentPrimary}10`,
-                  border: `1px solid ${t.accentPrimary}18`,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginBottom: 16,
-                }}
-              >
-                {card.icon}
-              </div>
-              <div
-                style={{
-                  fontSize: 15,
-                  fontWeight: 600,
-                  color: t.text,
-                  marginBottom: 8,
-                }}
-              >
-                {card.title}
-              </div>
-              <div
-                style={{
-                  fontSize: 13,
-                  color: t.textMuted,
-                  lineHeight: 1.6,
-                }}
-              >
-                {card.desc}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════
-          SECTION 4 — SOCIAL PROOF + INLINE AUTH
+          SECTION 3 — SOCIAL PROOF + INLINE AUTH
           ═══════════════════════════════════════════════════════ */}
       <section
         ref={proofReveal.ref}
@@ -905,19 +822,42 @@ export default function LandingPage() {
               margin: "0 0 8px 0",
             }}
           >
-            Join developers monitoring their stack
+            69,000+ checks.{" "}
+            <span style={{ color: t.accentPrimary }}>Every day.</span>
           </h2>
           <p
             style={{
               fontSize: 14,
               color: t.textMuted,
               lineHeight: 1.6,
-              marginBottom: 8,
+              marginBottom: 20,
             }}
           >
-            {totalCount} services tracked across {categoryCount || 14}{" "}
-            categories. Real-time updates every 60 seconds.
+            {totalCount} services across {categoryCount || 14} categories,
+            polled every 60 seconds. Your entire stack, always watched.
           </p>
+
+          {/* Inline value props — condensed from removed Section 3 */}
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              justifyContent: "center",
+              gap: "6px 18px",
+              marginBottom: 24,
+              fontSize: 13,
+              color: t.textSecondary,
+            }}
+          >
+            {["Instant alerts", "Project boards", "Incident timelines", "Team sharing"].map((v) => (
+              <span key={v} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={t.accentGreen} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                {v}
+              </span>
+            ))}
+          </div>
 
           {/* Logo ribbon */}
           <div
@@ -929,7 +869,6 @@ export default function LandingPage() {
               flexWrap: "wrap",
               opacity: 0.5,
               marginBottom: 28,
-              marginTop: 20,
             }}
           >
             {[
@@ -951,7 +890,7 @@ export default function LandingPage() {
             ))}
           </div>
 
-          {/* Inline auth or dashboard link */}
+          {/* Inline auth */}
           {isSupabaseEnabled && !user ? (
             <div>
               <div
@@ -1045,25 +984,17 @@ export default function LandingPage() {
                   Continue with GitHub
                 </button>
               </div>
-              <Link
-                href="/dashboard"
+              <p
                 style={{
-                  display: "inline-block",
-                  marginTop: 16,
-                  fontSize: 13,
+                  fontSize: 11,
                   color: t.textMuted,
-                  textDecoration: "none",
-                  transition: "color 0.15s",
+                  marginTop: 14,
+                  opacity: 0.6,
+                  fontFamily: "var(--font-mono)",
                 }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.color = t.textSecondary)
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.color = t.textMuted)
-                }
               >
-                or continue without signing up
-              </Link>
+                One click · 14-day Pro trial · No credit card
+              </p>
             </div>
           ) : (
             <Link
@@ -1115,11 +1046,168 @@ export default function LandingPage() {
       {/* ═══════════════════════════════════════════════════════
           SECTION 5 — FOOTER
           ═══════════════════════════════════════════════════════ */}
-      <AppFooter t={t} />
+      <AppFooter t={t}>
+        {["aws", "github", "vercel", "openai", "stripe", "cloudflare", "slack", "datadog"].map((slug) => {
+          const svc = serviceConfigs.find((s) => s.slug === slug);
+          if (!svc) return null;
+          return (
+            <Link
+              key={slug}
+              href={`/service/${slug}`}
+              style={{ fontSize: 11, color: t.footerColor, fontFamily: "var(--font-mono)", textDecoration: "none", opacity: 0.8 }}
+            >
+              {svc.name}
+            </Link>
+          );
+        })}
+      </AppFooter>
 
       {/* Sign In Modal */}
       {showSignIn && (
         <SignInModal t={t} onClose={() => setShowSignIn(false)} />
+      )}
+
+      {/* Exit Intent Popup — recovers bouncing visitors */}
+      {showExitIntent && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(0,0,0,0.6)",
+            backdropFilter: "blur(4px)",
+            animation: "fade-in 0.2s ease",
+          }}
+          onClick={dismissExitIntent}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: t.surface,
+              border: `1px solid ${t.border}`,
+              borderRadius: 16,
+              padding: "36px 32px",
+              maxWidth: 400,
+              width: "90%",
+              textAlign: "center",
+              position: "relative",
+              boxShadow: `0 24px 48px rgba(0,0,0,0.3)`,
+              animation: "scale-in 0.2s ease",
+            }}
+          >
+            <button
+              onClick={dismissExitIntent}
+              style={{
+                position: "absolute",
+                top: 12,
+                right: 12,
+                background: "none",
+                border: "none",
+                color: t.textMuted,
+                cursor: "pointer",
+                padding: 4,
+                fontSize: 18,
+                lineHeight: 1,
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+            <div
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 12,
+                background: `${t.accentPrimary}12`,
+                border: `1px solid ${t.accentPrimary}20`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 16px",
+              }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={t.accentPrimary} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
+            </div>
+            <h3
+              style={{
+                fontSize: 20,
+                fontWeight: 700,
+                letterSpacing: -0.5,
+                margin: "0 0 8px",
+                color: t.text,
+              }}
+            >
+              Don&apos;t miss the next outage
+            </h3>
+            <p
+              style={{
+                fontSize: 14,
+                color: t.textMuted,
+                lineHeight: 1.6,
+                margin: "0 0 24px",
+              }}
+            >
+              Get notified the moment AWS, GitHub, or any of your services go down. Free alerts, no noise.
+            </p>
+            <button
+              onClick={() => {
+                dismissExitIntent();
+                setShowSignIn(true);
+              }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                background: t.accentPrimary,
+                color: "#fff",
+                border: "none",
+                borderRadius: 10,
+                padding: "12px 28px",
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: "var(--font-sans)",
+                transition: "all 0.2s ease",
+                boxShadow: `0 0 20px ${t.accentPrimary}30`,
+                width: "100%",
+                justifyContent: "center",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-1px)";
+                e.currentTarget.style.boxShadow = `0 0 30px ${t.accentPrimary}50`;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow = `0 0 20px ${t.accentPrimary}30`;
+              }}
+            >
+              Get Free Alerts
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12" />
+                <polyline points="12 5 19 12 12 19" />
+              </svg>
+            </button>
+            <p
+              style={{
+                fontSize: 11,
+                color: t.textMuted,
+                marginTop: 12,
+                opacity: 0.6,
+                fontFamily: "var(--font-mono)",
+              }}
+            >
+              14-day Pro trial · No credit card
+            </p>
+          </div>
+        </div>
       )}
     </div>
   );
