@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useUser } from "@/lib/user-context";
 import { THEMES } from "@/config/themes";
 import type { ServiceConfig } from "@/config/services";
@@ -88,11 +88,7 @@ export default function ServicePageContent({
   const t = THEMES[theme];
 
   const [showSignIn, setShowSignIn] = useState(false);
-  const [stickyDismissed, setStickyDismissed] = useState(false);
-  const [showSticky, setShowSticky] = useState(false);
   const [addingToProject, setAddingToProject] = useState(false);
-
-  const heroRef = useRef<HTMLElement>(null);
 
   const currentStatus = detail?.service.currentStatus ?? "OPERATIONAL";
   const components = detail?.components ?? [];
@@ -102,18 +98,6 @@ export default function ServicePageContent({
 
   const isDown = currentStatus !== "OPERATIONAL";
   const alreadyMonitoring = !isLoading && !!user && isInActiveProject(config.slug);
-
-  // Scroll observer for sticky bar
-  useEffect(() => {
-    const el = heroRef.current;
-    if (!el || typeof IntersectionObserver === "undefined") return;
-    const observer = new IntersectionObserver(
-      ([entry]) => setShowSticky(!entry.isIntersecting),
-      { threshold: 0 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
 
   const handleAddService = useCallback(async () => {
     if (!activeProjectId) {
@@ -293,37 +277,69 @@ export default function ServicePageContent({
       <AppHeader
         t={t}
         rightContent={
-          <Link
-            href="/dashboard"
-            style={{
-              background: "transparent",
-              border: `1px solid ${t.border}`,
-              borderRadius: 8,
-              padding: "6px 14px",
-              fontSize: 12,
-              fontWeight: 600,
-              color: t.textSecondary,
-              cursor: "pointer",
-              fontFamily: "var(--font-sans)",
-              transition: "all 0.15s",
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              textDecoration: "none",
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="19" y1="12" x2="5" y2="12" />
-              <polyline points="12 19 5 12 12 5" />
-            </svg>
-            Dashboard
-          </Link>
+          <nav style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <Link
+              href="/dashboard"
+              style={{
+                fontSize: 13,
+                fontWeight: 500,
+                color: t.textSecondary,
+                textDecoration: "none",
+                padding: "6px 14px",
+                borderRadius: 8,
+                transition: "color 0.15s",
+              }}
+            >
+              Dashboard
+            </Link>
+            {isSupabaseEnabled && !user && !isLoading && (
+              <button
+                onClick={() => setShowSignIn(true)}
+                style={{
+                  background: t.accentPrimary,
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "7px 16px",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "var(--font-sans)",
+                  transition: "opacity 0.15s",
+                  marginLeft: 4,
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.9")}
+                onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+              >
+                Sign In
+              </button>
+            )}
+            {user && (
+              <Link
+                href="/dashboard"
+                style={{
+                  background: t.accentPrimary,
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "7px 16px",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  textDecoration: "none",
+                  fontFamily: "var(--font-sans)",
+                  marginLeft: 4,
+                }}
+              >
+                My Dashboard
+              </Link>
+            )}
+          </nav>
         }
       />
 
       <main style={{ maxWidth: 880, margin: "0 auto", padding: "32px 24px 0" }}>
         {/* ═══ 1. Hero status section ═══ */}
-        <section ref={heroRef} style={{ marginBottom: 32 }}>
+        <section style={{ marginBottom: 32 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
             {config.logoUrl && (
               <div
@@ -734,36 +750,15 @@ export default function ServicePageContent({
           </p>
         </section>
 
-        {/* Spacer for sticky bar */}
-        {showSticky && !stickyDismissed && !alreadyMonitoring && !isLoading && (
-          <div style={{ height: 64 }} />
-        )}
       </main>
 
-      <AppFooter t={t}>
-        <Link
-          href={`/service/${config.slug}`}
-          style={{ fontSize: 11, color: t.footerColor, fontFamily: "var(--font-mono)", textDecoration: "none" }}
-        >
-          {config.name} Status
-        </Link>
-      </AppFooter>
-
-      {/* ═══ 11. Sticky bottom bar ═══ */}
-      {showSticky && !stickyDismissed && !alreadyMonitoring && !isLoading && (
+      {/* ═══ 11. Bottom alert banner (above footer) ═══ */}
+      {!alreadyMonitoring && !isLoading && (
         <div
           style={{
-            position: "fixed",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            zIndex: 200,
-            background: t.headerBg,
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
             borderTop: `1px solid ${t.border}`,
-            padding: "12px 24px",
-            boxShadow: t.shadowLg,
+            padding: "16px 24px",
+            background: t.surface,
           }}
         >
           <div
@@ -774,6 +769,7 @@ export default function ServicePageContent({
               alignItems: "center",
               justifyContent: "space-between",
               gap: 12,
+              flexWrap: "wrap",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1 }}>
@@ -787,51 +783,56 @@ export default function ServicePageContent({
                   flexShrink: 0,
                 }}
               />
-              <span style={{ fontSize: 13, fontWeight: 500, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {config.name} is {formatStatus(currentStatus).toLowerCase()}
+              <span style={{ fontSize: 13, fontWeight: 500, color: t.text }}>
+                {isDown
+                  ? `Get alerted when ${config.name} recovers`
+                  : `Never miss a ${config.name} outage`}
               </span>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-              <button
-                onClick={user ? handleAddService : handleCTAClick}
-                style={{
-                  background: t.ctaBg,
-                  color: t.ctaText,
-                  padding: "8px 18px",
-                  borderRadius: 8,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  border: "none",
-                  cursor: "pointer",
-                  fontFamily: "var(--font-sans)",
-                  transition: "all 0.15s",
-                  opacity: addingToProject ? 0.7 : 1,
-                  pointerEvents: addingToProject ? "none" : "auto",
-                }}
-              >
-                {addingToProject ? "Adding..." : user ? "Add to Dashboard" : "Get Alerts"}
-              </button>
-              <button
-                onClick={() => setStickyDismissed(true)}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: t.textMuted,
-                  cursor: "pointer",
-                  padding: 4,
-                  display: "flex",
-                  alignItems: "center",
-                }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-            </div>
+            <button
+              onClick={user ? handleAddService : handleCTAClick}
+              style={{
+                background: t.ctaBg,
+                color: t.ctaText,
+                padding: "8px 20px",
+                borderRadius: 8,
+                fontSize: 13,
+                fontWeight: 600,
+                border: "none",
+                cursor: "pointer",
+                fontFamily: "var(--font-sans)",
+                transition: "all 0.15s",
+                opacity: addingToProject ? 0.7 : 1,
+                pointerEvents: addingToProject ? "none" : "auto",
+                flexShrink: 0,
+              }}
+            >
+              {addingToProject ? "Adding..." : user ? "Add to Dashboard" : "Get Free Alerts"}
+            </button>
           </div>
         </div>
       )}
+
+      <AppFooter t={t}>
+        <Link href="/dashboard" style={{ fontSize: 11, color: t.footerColor, fontFamily: "var(--font-mono)", textDecoration: "none" }}>
+          Dashboard
+        </Link>
+        <Link
+          href={`/service/${config.slug}`}
+          style={{ fontSize: 11, color: t.footerColor, fontFamily: "var(--font-mono)", textDecoration: "none" }}
+        >
+          {config.name} Status
+        </Link>
+        {relatedServices.slice(0, 4).map((s) => (
+          <Link
+            key={s.slug}
+            href={`/service/${s.slug}`}
+            style={{ fontSize: 11, color: t.footerColor, fontFamily: "var(--font-mono)", textDecoration: "none" }}
+          >
+            {s.name}
+          </Link>
+        ))}
+      </AppFooter>
 
       {/* ═══ 12. SignInModal ═══ */}
       {showSignIn && <SignInModal t={t} onClose={() => setShowSignIn(false)} />}

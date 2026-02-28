@@ -125,6 +125,12 @@ export default function LandingPage() {
   }, []);
 
   useEffect(() => {
+    // Detect returning visitor in same batch as hasMounted
+    // so both are true on the first meaningful render
+    try {
+      if (localStorage.getItem("sh_visited")) setIsReturningVisitor(true);
+      localStorage.setItem("sh_visited", "1");
+    } catch {}
     setHasMounted(true);
     fetchServices();
     const interval = setInterval(fetchServices, 60000);
@@ -139,14 +145,6 @@ export default function LandingPage() {
     }, 1000);
     return () => clearInterval(interval);
   }, [lastFetchTime]);
-
-  // Return visitor detection
-  useEffect(() => {
-    try {
-      if (localStorage.getItem("sh_visited")) setIsReturningVisitor(true);
-      localStorage.setItem("sh_visited", "1");
-    } catch {}
-  }, []);
 
   // Exit intent — fires once when cursor leaves viewport (desktop only)
   useEffect(() => {
