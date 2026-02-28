@@ -752,13 +752,19 @@ export default function ServicePageContent({
 
       </main>
 
-      {/* ═══ 11. Bottom alert banner (above footer) ═══ */}
+      {/* ═══ 11. Sticky alert bar — sticks to bottom on scroll, pushed up by footer ═══ */}
       {!alreadyMonitoring && !isLoading && (
         <div
           style={{
+            position: "sticky",
+            bottom: 0,
+            zIndex: 200,
             borderTop: `1px solid ${t.border}`,
-            padding: "16px 24px",
-            background: t.surface,
+            padding: "14px 24px",
+            background: t.headerBg,
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            boxShadow: `0 -4px 12px ${t.bg}80`,
           }}
         >
           <div
